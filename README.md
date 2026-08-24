@@ -1,0 +1,4 @@
+IRIS — AI-Powered Diabetic Retinopathy Screening Pipeline
+
+IRIS is a MATLAB-based, explainable retinal image analysis pipeline for automated diabetic retinopathy (DR) screening in low-resource, rural healthcare settings. India has 77M+ diabetic adults and only ~1 ophthalmologist per 100,000 rural population, making manual screening infeasible at scale — IRIS addresses this by combining image quality assessment and enhancement, retinal structure and lesion segmentation (optic disc, fovea, vessels, microaneurysms, exudates, hemorrhages, neovascularization), ICDR 0–4 severity grading, and Grad-CAM–based explainability into a single validated pipeline, backed by a Simulink model for district-level screening resource allocation. The system targets >90% sensitivity and >85% specificity for referable DR, with human-in-the-loop review in under 30 seconds, and is validated against expert-adjudicated ground truth and published benchmarks (APTOS, IDRiD, Messidor-2, EyePACS).
+
