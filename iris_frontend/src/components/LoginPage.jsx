@@ -10,6 +10,8 @@ import {
   Sparkles, 
   IdCard 
 } from 'lucide-react';
+import { createPatient } from '../api/patients';
+import { listFacilities } from '../api/facilities';
 
 const INDIAN_STATES_DISTRICTS = {
   'Uttar Pradesh': ['Varanasi', 'Gorakhpur', 'Lucknow', 'Prayagraj', 'Kanpur', 'Sitapur', 'Jhansi', 'Agra', 'Bareilly', 'Mirzapur', 'Bundelkhand'],
@@ -119,15 +121,47 @@ export default function LoginPage({ onLoginSuccess }) {
     setOtpError('');
   };
 
-  const handleVerifyOtp = (e) => {
+  const handleVerifyOtp = async (e) => {
     e.preventDefault();
     const enteredOtp = otp.join('');
     
     // OTP verification check: accepts "0000" as specified
     if (enteredOtp === '0000') {
       setIsSubmitting(true);
-      setTimeout(() => {
-        setIsSubmitting(false);
+      try {
+        // Persist patient to backend database
+        let backendPatientId = null;
+        try {
+          const patientResponse = await createPatient({
+            full_name: formData.patientName.trim(),
+            abha_id: formData.patientId.trim() || null,
+            phone: formData.mobile.trim(),
+            gender: null,
+            date_of_birth: null,
+          });
+          backendPatientId = patientResponse.id;
+          console.log('[IRIS] Patient persisted to backend:', backendPatientId);
+        } catch (apiErr) {
+          // Non-blocking — if backend is down, continue with local-only mode
+          console.warn('[IRIS] Backend patient creation failed (continuing in local mode):', apiErr.message);
+        }
+
+        // Resolve facility from backend database
+        let backendFacilityId = null;
+        try {
+          const facilities = await listFacilities({ is_active: true, limit: 100 });
+          if (facilities && facilities.length > 0) {
+            const match = facilities.find(f => 
+              f.name.toLowerCase().includes(formData.district.toLowerCase()) || 
+              (f.address && f.address.toLowerCase().includes(formData.district.toLowerCase()))
+            );
+            backendFacilityId = match ? match.id : facilities[0].id;
+            console.log('[IRIS] Facility resolved for session:', backendFacilityId);
+          }
+        } catch (fErr) {
+          console.warn('[IRIS] Facility lookup failed (continuing in local mode):', fErr.message);
+        }
+
         const userData = {
           name: formData.doctorName.trim(),
           mobile: formData.mobile.trim(),
@@ -137,10 +171,17 @@ export default function LoginPage({ onLoginSuccess }) {
           patientId: formData.patientId.trim() || 'vyom1234',
           role: 'Tele-Ophthalmologist / Clinician',
           loginTime: new Date().toISOString(),
+          backendPatientId, // UUID from DB, or null if offline
+          backendFacilityId, // UUID from DB, or null if offline
         };
         localStorage.setItem('iris_ai_user', JSON.stringify(userData));
         if (onLoginSuccess) onLoginSuccess(userData);
-      }, 400);
+      } catch (err) {
+        console.error('[IRIS] Login flow error:', err);
+        setOtpError('Something went wrong. Please try again.');
+      } finally {
+        setIsSubmitting(false);
+      }
     } else {
       setOtpError('Invalid OTP! Please enter 0000 (Default Demo OTP).');
     }

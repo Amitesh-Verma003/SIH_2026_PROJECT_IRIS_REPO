@@ -22,8 +22,11 @@ import {
 import confetti from 'canvas-confetti';
 import FundusCanvas from './FundusCanvas';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
+import { createScreeningSession, addFundusImage } from '../api/screenings';
+import { createGrading } from '../api/gradings';
+import { createReferral } from '../api/referrals';
 
-export default function InteractiveViewer({ onOpenReportModal, currentPreset, onSelectPreset, currentUser }) {
+export default function InteractiveViewer({ onOpenReportModal, currentPreset, onSelectPreset, currentUser, backendPatientId, backendFacilityId }) {
   const [selectedPresetIndex, setSelectedPresetIndex] = useState(2); // Level 2 default
   const [gradCamOpacity, setGradCamOpacity] = useState(0.65);
   const [viewMode, setViewMode] = useState('blend'); // 'blend' | 'split' | 'raw' | 'gradcam'
@@ -33,6 +36,8 @@ export default function InteractiveViewer({ onOpenReportModal, currentPreset, on
   const [isApproved, setIsApproved] = useState(false);
   const [doctorNotes, setDoctorNotes] = useState('Reviewed AI Grad-CAM localization. Hard exudate clusters verified in temporal parafoveal zone. Triage approved for specialist tele-consultation.');
   const [overrideGrade, setOverrideGrade] = useState(null);
+  const [backendSessionId, setBackendSessionId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -60,8 +65,10 @@ export default function InteractiveViewer({ onOpenReportModal, currentPreset, on
     }
   };
 
-  const handleApproveAndExport = () => {
+  const handleApproveAndExport = async () => {
     setIsApproved(true);
+    setIsSaving(true);
+
     // Fire festive clinical success confetti
     confetti({
       particleCount: 80,
@@ -70,13 +77,72 @@ export default function InteractiveViewer({ onOpenReportModal, currentPreset, on
       colors: ['#0062FF', '#10B981', '#38BDF8', '#F59E0B'],
     });
 
-    // Open clinical report modal
+    const finalGrade = overrideGrade !== null ? overrideGrade : activeData.icdrGrade;
+
+    let createdSessionId = null;
+
+    // --- Persist to backend (non-blocking) ---
+    try {
+      if (backendPatientId && backendFacilityId) {
+        // 1. Create screening session
+        const session = await createScreeningSession({
+          patient_id: backendPatientId,
+          facility_id: backendFacilityId,
+          status: 'completed',
+          notes: doctorNotes,
+        });
+        createdSessionId = session.id;
+        setBackendSessionId(session.id);
+        console.log('[IRIS] Screening session created:', session.id);
+
+        // 2. Add fundus image record
+        const image = await addFundusImage(session.id, {
+          storage_path: customImage || `preset://${activeData.id}`,
+          eye: activeData.eyeSide?.includes('Right') ? 'right' : 'left',
+          source_type: customImage ? 'clinical' : 'demo_preset',
+        });
+        console.log('[IRIS] Fundus image recorded:', image.id);
+
+        // 3. Create DR grading
+        const grading = await createGrading({
+          image_id: image.id,
+          icdr_level: Math.max(0, Math.min(4, finalGrade)),
+          vtdr_flag: finalGrade >= 3,
+          confidence_score: activeData.confidence / 100,
+        });
+        console.log('[IRIS] DR grading created:', grading.id);
+
+        // 4. Create referral if referable
+        if (grading.referable_flag) {
+          const referral = await createReferral({
+            screening_session_id: session.id,
+            patient_id: backendPatientId,
+            urgency_level: finalGrade >= 4 ? 'emergency' : finalGrade >= 3 ? 'urgent' : 'routine',
+            status_id: 1, // default pending status
+            reason: activeData.doctorRecommendation,
+          });
+          console.log('[IRIS] Referral created:', referral.id);
+        }
+      } else if (backendPatientId) {
+        // Patient exists but no facility — create session without facility constraint
+        console.warn('[IRIS] No facility ID; skipping full backend persistence');
+      } else {
+        console.info('[IRIS] Running in local-only mode (no backend patient ID)');
+      }
+    } catch (err) {
+      console.warn('[IRIS] Backend persistence failed (report still generated locally):', err.message);
+    } finally {
+      setIsSaving(false);
+    }
+
+    // Open clinical report modal (always works, even offline)
     onOpenReportModal({
       ...activeData,
       doctorNotes,
-      overrideGrade: overrideGrade !== null ? overrideGrade : activeData.icdrGrade,
+      overrideGrade: finalGrade,
       approvedAt: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
       customImage,
+      backendSessionId: createdSessionId,
     });
   };
 

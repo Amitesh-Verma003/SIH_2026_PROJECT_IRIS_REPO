@@ -17,7 +17,9 @@ export default function StudioPage({
   onLogout, 
   onOpenReportModal, 
   selectedPreset, 
-  onSelectPreset 
+  onSelectPreset,
+  backendPatientId,
+  backendFacilityId,
 }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col selection:bg-blue-100 selection:text-blue-900 relative">
@@ -101,6 +103,8 @@ export default function StudioPage({
           currentPreset={selectedPreset}
           onSelectPreset={onSelectPreset}
           currentUser={currentUser}
+          backendPatientId={backendPatientId}
+          backendFacilityId={backendFacilityId}
         />
       </main>
 

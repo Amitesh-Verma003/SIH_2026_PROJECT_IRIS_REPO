@@ -19,12 +19,19 @@ export default function App() {
   const [activeReportData, setActiveReportData] = useState(null);
   const [selectedPreset, setSelectedPreset] = useState(FUNDUS_PRESETS[2]);
 
+  // Backend entity IDs persisted after login
+  const [backendPatientId, setBackendPatientId] = useState(null);
+  const [backendFacilityId, setBackendFacilityId] = useState(null);
+
   // Load user from localStorage on mount & listen to hash changes
   useEffect(() => {
     try {
       const stored = localStorage.getItem('iris_ai_user');
       if (stored) {
-        setCurrentUser(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        setCurrentUser(parsed);
+        if (parsed.backendPatientId) setBackendPatientId(parsed.backendPatientId);
+        if (parsed.backendFacilityId) setBackendFacilityId(parsed.backendFacilityId);
       }
     } catch (e) {
       console.error('Failed to parse user session', e);
@@ -83,6 +90,9 @@ export default function App() {
   const handleLoginSuccess = (userData) => {
     setCurrentUser(userData);
     setShowLoginModal(false);
+    // Persist backend IDs from login
+    if (userData.backendPatientId) setBackendPatientId(userData.backendPatientId);
+    if (userData.backendFacilityId) setBackendFacilityId(userData.backendFacilityId);
     // After login, show the HOME page (not the live diagnostic page)
     navigateToHome();
   };
@@ -90,6 +100,8 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('iris_ai_user');
     setCurrentUser(null);
+    setBackendPatientId(null);
+    setBackendFacilityId(null);
     navigateToHome();
   };
 
@@ -140,6 +152,8 @@ export default function App() {
           onOpenReportModal={handleOpenReportModal}
           selectedPreset={selectedPreset}
           onSelectPreset={setSelectedPreset}
+          backendPatientId={backendPatientId}
+          backendFacilityId={backendFacilityId}
         />
       ) : (
         /* 4. VIEW B: HOMEPAGE OVERVIEW & CLINICAL PIPELINE MODULES (Shown by default after login) */
@@ -190,3 +204,4 @@ export default function App() {
     </div>
   );
 }
+

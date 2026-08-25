@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   UploadCloud, 
   ShieldCheck, 
@@ -10,10 +10,24 @@ import {
 } from 'lucide-react';
 import FundusCanvas from './FundusCanvas';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
+import { getDashboardStats } from '../api/stats';
 
 export default function HeroSection({ onUploadClick, onExplorePipelineClick }) {
   // Use Preset 2 (Moderate NPDR with Exudates) for high-impact live preview on tablet
   const heroPreset = FUNDUS_PRESETS[2];
+
+  // Live dashboard stats from backend (with sensible fallbacks)
+  const [liveStats, setLiveStats] = useState({
+    total_patients: null,
+    total_screenings: null,
+    total_facilities: null,
+  });
+
+  useEffect(() => {
+    getDashboardStats()
+      .then((data) => setLiveStats(data))
+      .catch((err) => console.warn('[IRIS] Dashboard stats unavailable:', err.message));
+  }, []);
 
   return (
     <section id="overview" className="relative overflow-hidden pt-10 pb-20 md:pt-16 md:pb-28 bg-gradient-to-b from-white via-slate-50 to-slate-100/70 bg-grid-slate">
@@ -35,7 +49,11 @@ export default function HeroSection({ onUploadClick, onExplorePipelineClick }) {
               </span>
               <span className="tracking-wide uppercase text-xs font-extrabold">AI for Rural Healthcare</span>
               <span className="text-blue-300">|</span>
-              <span className="text-slate-600 font-mono">100k+ Target Reach across India</span>
+              <span className="text-slate-600 font-mono">
+                {liveStats.total_patients !== null
+                  ? `${liveStats.total_patients.toLocaleString()} Patients • ${liveStats.total_screenings.toLocaleString()} Screenings`
+                  : '100k+ Target Reach across India'}
+              </span>
             </div>
 
             {/* Main Headline */}
@@ -49,7 +67,7 @@ export default function HeroSection({ onUploadClick, onExplorePipelineClick }) {
 
             {/* Subtext */}
             <p className="text-lg sm:text-xl text-slate-600 leading-relaxed max-w-3xl font-normal">
-              Bridging India’s rural ophthalmologist gap with sub-30s explainable triage, real-time image quality filters, and deep-learning precision for Primary Health Centers (PHCs).
+              Bridging India's rural ophthalmologist gap with sub-30s explainable triage, real-time image quality filters, and deep-learning precision for Primary Health Centers (PHCs).
             </p>
 
             {/* Key Clinical Metric Pills */}

@@ -76,6 +76,9 @@ export default function ReportModal({ isOpen, onClose, reportData }) {
 
             <div className="text-right text-xs font-mono space-y-1">
               <div className="font-bold text-slate-800">REPORT ID: {reportData.patientId}</div>
+              {reportData.backendSessionId && (
+                <div className="text-[11px] text-blue-600 font-bold">SESSION: {reportData.backendSessionId.slice(0, 13)}...</div>
+              )}
               <div className="text-slate-500">Date: {reportData.approvedAt || '24-Aug-2026 11:45 IST'}</div>
               <div className="text-emerald-700 font-bold">ICMR &amp; NABH Tele-Care Compliant</div>
             </div>
