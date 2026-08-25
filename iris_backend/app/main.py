@@ -1,8 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.config import settings
+from app.database import get_db
 from app.routers import patients, facilities, screenings, gradings, referrals, lookups
+from app import models
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
 
@@ -15,14 +19,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(patients.router)
-app.include_router(facilities.router)
-app.include_router(screenings.router)
-app.include_router(gradings.router)
-app.include_router(referrals.router)
-app.include_router(lookups.router)
+# All routers mounted under /api prefix
+app.include_router(patients.router, prefix="/api")
+app.include_router(facilities.router, prefix="/api")
+app.include_router(screenings.router, prefix="/api")
+app.include_router(gradings.router, prefix="/api")
+app.include_router(referrals.router, prefix="/api")
+app.include_router(lookups.router, prefix="/api")
 
 
-@app.get("/health")
+@app.get("/api/health")
 def health_check():
     return {"status": "ok", "app": settings.app_name}
+
+
+@app.get("/api/stats/dashboard")
+def dashboard_stats(db: Session = Depends(get_db)):
+    """Aggregate counts for the frontend dashboard hero section."""
+    total_patients = db.query(func.count(models.Patient.id)).filter(
+        models.Patient.deleted_at.is_(None)
+    ).scalar() or 0
+
+    total_screenings = db.query(func.count(models.ScreeningSession.id)).scalar() or 0
+
+    total_gradings = db.query(func.count(models.DrGrading.id)).scalar() or 0
+
+    referable_count = db.query(func.count(models.DrGrading.id)).filter(
+        models.DrGrading.referable_flag.is_(True)
+    ).scalar() or 0
+
+    total_referrals = db.query(func.count(models.Referral.id)).scalar() or 0
+
+    total_facilities = db.query(func.count(models.Facility.id)).filter(
+        models.Facility.is_active.is_(True)
+    ).scalar() or 0
+
+    return {
+        "total_patients": total_patients,
+        "total_screenings": total_screenings,
+        "total_gradings": total_gradings,
+        "referable_count": referable_count,
+        "total_referrals": total_referrals,
+        "total_facilities": total_facilities,
+    }

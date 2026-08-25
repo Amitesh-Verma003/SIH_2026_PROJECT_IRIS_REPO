@@ -72,7 +72,9 @@ def add_fundus_image(session_id: UUID, payload: schemas.FundusImageCreate, db: S
     session = db.query(models.ScreeningSession).filter(models.ScreeningSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Screening session not found")
-    image = models.FundusImage(**payload.model_dump(by_alias=False), screening_session_id=session_id)
+    data = payload.model_dump(by_alias=False)
+    data["screening_session_id"] = session_id
+    image = models.FundusImage(**data)
     db.add(image)
     db.commit()
     db.refresh(image)

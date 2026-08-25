@@ -73,7 +73,7 @@ class FacilityBase(BaseModel):
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
     is_active: bool = True
-    metadata_: dict[str, Any] = Field(default_factory=dict, alias="metadata")
+    extra_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class FacilityCreate(FacilityBase):
@@ -87,7 +87,7 @@ class FacilityUpdate(BaseModel):
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
     is_active: Optional[bool] = None
-    metadata_: Optional[dict[str, Any]] = Field(default=None, alias="metadata")
+    extra_data: Optional[dict[str, Any]] = Field(default=None)
 
 
 class FacilityOut(FacilityBase, ORMBase):
@@ -106,7 +106,7 @@ class DeviceBase(BaseModel):
     serial_number: Optional[str] = None
     calibration_date: Optional[date] = None
     status: str = "active"
-    metadata_: dict[str, Any] = Field(default_factory=dict, alias="metadata")
+    extra_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class DeviceCreate(DeviceBase):
@@ -155,7 +155,7 @@ class PatientBase(BaseModel):
     home_facility_id: Optional[UUID] = None
     diabetes_diagnosis_date: Optional[date] = None
     diabetes_type: Optional[str] = None
-    metadata_: dict[str, Any] = Field(default_factory=dict, alias="metadata")
+    extra_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class PatientCreate(PatientBase):
@@ -168,7 +168,7 @@ class PatientUpdate(BaseModel):
     home_facility_id: Optional[UUID] = None
     diabetes_diagnosis_date: Optional[date] = None
     diabetes_type: Optional[str] = None
-    metadata_: Optional[dict[str, Any]] = Field(default=None, alias="metadata")
+    extra_data: Optional[dict[str, Any]] = Field(default=None)
 
 
 class PatientOut(PatientBase, ORMBase):
@@ -219,7 +219,7 @@ class FundusImageBase(BaseModel):
     source_type: str = "clinical"
     source_dataset: Optional[str] = None
     source_image_ref: Optional[str] = None
-    metadata_: dict[str, Any] = Field(default_factory=dict, alias="metadata")
+    extra_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class FundusImageCreate(FundusImageBase):

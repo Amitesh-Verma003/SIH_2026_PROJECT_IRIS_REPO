@@ -84,7 +84,7 @@ class Facility(Base):
     contact_phone = Column(Text)
     contact_email = Column(Text)
     is_active = Column(Boolean, server_default="true")
-    metadata_ = Column("metadata", JSONB, server_default="{}")
+    extra_data = Column("metadata", JSONB, server_default="{}")
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
@@ -97,7 +97,7 @@ class Device(Base):
     serial_number = Column(Text, unique=True)
     calibration_date = Column(Date)
     status = Column(Text, server_default="active")
-    metadata_ = Column("metadata", JSONB, server_default="{}")
+    extra_data = Column("metadata", JSONB, server_default="{}")
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 
@@ -130,7 +130,7 @@ class Patient(Base):
     home_facility_id = Column(UUID(as_uuid=True), ForeignKey("facilities.id"))
     diabetes_diagnosis_date = Column(Date)
     diabetes_type = Column(Text)
-    metadata_ = Column("metadata", JSONB, server_default="{}")
+    extra_data = Column("metadata", JSONB, server_default="{}")
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     deleted_at = Column(TIMESTAMP(timezone=True))
@@ -166,7 +166,7 @@ class FundusImage(Base):
     source_type = Column(Text, nullable=False, server_default="clinical")
     source_dataset = Column(Text)
     source_image_ref = Column(Text)
-    metadata_ = Column("metadata", JSONB, server_default="{}")
+    extra_data = Column("metadata", JSONB, server_default="{}")
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 
@@ -215,7 +215,7 @@ class SegmentationResult(Base):
     bounding_box = Column(JSONB)
     confidence_score = Column(Numeric(4, 3))
     count = Column(Integer)
-    metadata_ = Column("metadata", JSONB, server_default="{}")
+    extra_data = Column("metadata", JSONB, server_default="{}")
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 

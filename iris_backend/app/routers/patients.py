@@ -10,6 +10,19 @@ router = APIRouter(prefix="/patients", tags=["patients"])
 
 @router.post("/", response_model=schemas.PatientOut, status_code=201)
 def create_patient(payload: schemas.PatientCreate, db: Session = Depends(get_db)):
+    if payload.abha_id:
+        existing = db.query(models.Patient).filter(
+            models.Patient.abha_id == payload.abha_id,
+            models.Patient.deleted_at.is_(None)
+        ).first()
+        if existing:
+            for field, value in payload.model_dump(exclude_unset=True, by_alias=False).items():
+                if value is not None:
+                    setattr(existing, field, value)
+            db.commit()
+            db.refresh(existing)
+            return existing
+
     patient = models.Patient(**payload.model_dump(by_alias=False))
     db.add(patient)
     db.commit()
