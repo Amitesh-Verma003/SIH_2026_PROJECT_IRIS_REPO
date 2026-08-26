@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Layers, 
@@ -12,6 +12,44 @@ import {
 } from 'lucide-react';
 import FundusCanvas from './FundusCanvas';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
+
+// Scroll-driven 3D bloom-out / collapse-back Card Box Container
+function PipelineCardBox({ id, children, className = "" }) {
+  const [isVisible, setIsVisible] = useState(false);
+  const cardRef = useRef(null);
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+      },
+      {
+        threshold: 0.15,
+        rootMargin: "-20px 0px -20px 0px",
+      }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={cardRef}
+      id={id}
+      className={`origin-center transform-gpu transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        isVisible
+          ? 'scale-100 opacity-100 blur-0 translate-y-0 shadow-xl border-slate-200/90'
+          : 'scale-[0.88] opacity-25 blur-sm translate-y-10 pointer-events-none shadow-none border-transparent'
+      } ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
 
 export default function PipelineCards({ onSelectSandboxPreset }) {
   // Card 1 state: IQA Mode
@@ -72,7 +110,7 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
           {/* =========================================================================
               MODULE 01: Image Quality Assessment & Adaptive Enhancement
              ========================================================================= */}
-          <div id="pipeline-iqa" className="bg-transparent rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-sm hover:shadow-md transition-all">
+          <PipelineCardBox id="pipeline-iqa" className="bg-transparent rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-sm hover:shadow-md transition-all">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               
               {/* Left Info & Controls */}
@@ -188,13 +226,13 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
               </div>
 
             </div>
-          </div>
+          </PipelineCardBox>
 
 
           {/* =========================================================================
               MODULE 02: Retinal Landmark & Biomarker Segmentation
              ========================================================================= */}
-          <div id="pipeline-biomarkers" className="bg-transparent rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-sm hover:shadow-md transition-all">
+          <PipelineCardBox id="pipeline-biomarkers" className="bg-transparent rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-sm hover:shadow-md transition-all">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               
               {/* Left Visual Preview */}
@@ -313,25 +351,25 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
               </div>
 
             </div>
-          </div>
+          </PipelineCardBox>
 
 
           {/* =========================================================================
-              MODULE 03: Calibrated DR Severity Grading (ICDR 0–4)
+              MODULE 03: Calibrated DR Severity Grading (ICDR 0ΓÇô4)
              ========================================================================= */}
-          <div id="pipeline-grading" className="bg-transparent rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-sm hover:shadow-md transition-all">
+          <PipelineCardBox id="pipeline-grading" className="bg-transparent rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-sm hover:shadow-md transition-all">
             <div className="space-y-6 text-left">
               
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-2xl font-black text-blue-600">03</span>
                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wide">
-                    Multi-Class Ensemble (ICDR 0–4)
+                    Multi-Class Ensemble (ICDR 0ΓÇô4)
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-500 font-mono">
                   <span>Temperature Scaled</span>
-                  <span>•</span>
+                  <span>ΓÇó</span>
                   <span>ECE &lt; 0.024</span>
                 </div>
               </div>
@@ -431,13 +469,13 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
               </div>
 
             </div>
-          </div>
+          </PipelineCardBox>
 
 
           {/* =========================================================================
               MODULE 04: Explainability Hub (Grad-CAM & Evidence)
              ========================================================================= */}
-          <div id="pipeline-explainability" className="bg-transparent rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-sm hover:shadow-md transition-all">
+          <PipelineCardBox id="pipeline-explainability" className="bg-transparent rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-sm hover:shadow-md transition-all">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               
               {/* Left Details & Controls */}
@@ -547,7 +585,7 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
               </div>
 
             </div>
-          </div>
+          </PipelineCardBox>
 
         </div>
 

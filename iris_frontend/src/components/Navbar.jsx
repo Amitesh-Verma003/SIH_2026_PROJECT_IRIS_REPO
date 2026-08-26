@@ -1,19 +1,20 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { 
   Activity, 
   Layers, 
   Sparkles, 
-  FileText, 
   Menu, 
   X, 
   ChevronRight,
   ShieldCheck,
   User,
   LogOut,
-  MapPin
+  MapPin,
+  Users,
+  IdCard
 } from 'lucide-react';
 
-export default function Navbar({ onLaunchDemo, currentUser, onLogout, onOpenLogin, onNavigateStudio }) {
+export default function Navbar({ onLaunchDemo, currentUser, onLogout, onOpenLogin, onNavigateStudio, onNavigateAbout, onNavigatePatients }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
@@ -21,7 +22,8 @@ export default function Navbar({ onLaunchDemo, currentUser, onLogout, onOpenLogi
     { name: 'Quality Check (IQA)', href: '#pipeline-iqa', icon: ShieldCheck, isStudio: false },
     { name: 'Biomarkers', href: '#pipeline-biomarkers', icon: Layers, isStudio: false },
     { name: 'Explainability (Grad-CAM)', href: '#pipeline-explainability', icon: Sparkles, isStudio: false },
-    { name: 'Live Triage Studio', href: '#studio', icon: FileText, isStudio: true },
+    { name: 'Patient Registry', href: '#patients', icon: IdCard, isPatients: true },
+    { name: 'About Us', href: '#about', icon: Users, isAbout: true },
   ];
 
   const handleNavClick = (e, link) => {
@@ -29,6 +31,14 @@ export default function Navbar({ onLaunchDemo, currentUser, onLogout, onOpenLogi
     setMobileMenuOpen(false);
     if (link.isStudio) {
       if (onNavigateStudio) onNavigateStudio();
+      return;
+    }
+    if (link.isAbout) {
+      if (onNavigateAbout) onNavigateAbout();
+      return;
+    }
+    if (link.isPatients) {
+      if (onNavigatePatients) onNavigatePatients();
       return;
     }
     const targetElement = document.querySelector(link.href);
@@ -165,7 +175,7 @@ export default function Navbar({ onLaunchDemo, currentUser, onLogout, onOpenLogi
             <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-between">
               <div>
                 <div className="text-sm font-bold text-slate-900">{currentUser.name}</div>
-                <div className="text-xs text-blue-700">{currentUser.district}, {currentUser.state} • +91 {currentUser.mobile}</div>
+                <div className="text-xs text-blue-700">{currentUser.district}, {currentUser.state} ΓÇó +91 {currentUser.mobile}</div>
               </div>
               <button
                 onClick={() => {

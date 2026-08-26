@@ -3,9 +3,11 @@ import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import PipelineCards from './components/PipelineCards';
 import StudioPage from './components/StudioPage';
+import AboutUsPage from './components/AboutUsPage';
 import ReportModal from './components/ReportModal';
 import IntroOverlay from './components/IntroOverlay';
 import LoginPage from './components/LoginPage';
+import PatientRegistry from './components/PatientRegistry';
 import FullCircleRetinaEye from './components/FullCircleRetinaEye';
 import Footer from './components/Footer';
 import { FUNDUS_PRESETS } from './assets/fundus-data';
@@ -14,7 +16,7 @@ export default function App() {
   const [showIntro, setShowIntro] = useState(true); // Shown BEFORE login only
   const [currentUser, setCurrentUser] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [currentPage, setCurrentPage] = useState('home'); // 'home' | 'studio'
+  const [currentPage, setCurrentPage] = useState('home'); // 'home' | 'studio' | 'about' | 'patients'
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [activeReportData, setActiveReportData] = useState(null);
   const [selectedPreset, setSelectedPreset] = useState(FUNDUS_PRESETS[2]);
@@ -39,11 +41,19 @@ export default function App() {
 
     if (window.location.hash === '#studio') {
       setCurrentPage('studio');
+    } else if (window.location.hash === '#about') {
+      setCurrentPage('about');
+    } else if (window.location.hash === '#patients' || window.location.hash === '#registry') {
+      setCurrentPage('patients');
     }
 
     const handleHashChange = () => {
       if (window.location.hash === '#studio') {
         setCurrentPage('studio');
+      } else if (window.location.hash === '#about') {
+        setCurrentPage('about');
+      } else if (window.location.hash === '#patients' || window.location.hash === '#registry') {
+        setCurrentPage('patients');
       } else {
         setCurrentPage('home');
       }
@@ -57,6 +67,18 @@ export default function App() {
     if (preset) setSelectedPreset(preset);
     setCurrentPage('studio');
     window.location.hash = 'studio';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToAbout = () => {
+    setCurrentPage('about');
+    window.location.hash = 'about';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToPatients = () => {
+    setCurrentPage('patients');
+    window.location.hash = 'patients';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -105,13 +127,25 @@ export default function App() {
     navigateToHome();
   };
 
+  const handleSelectPatientForStudio = (patient) => {
+    setCurrentUser(prev => ({
+      ...(prev || {}),
+      name: prev?.name || 'Dr. Ananya Sharma',
+      district: prev?.district || 'Varanasi',
+      state: prev?.state || 'Uttar Pradesh',
+      patientName: patient.name,
+      patientId: patient.id,
+    }));
+    navigateToStudio(patient.preset);
+  };
+
   const handleOpenReportModal = (reportPayload) => {
     setActiveReportData({
       ...reportPayload,
       doctorName: currentUser?.name || reportPayload.doctorName || 'Dr. Ananya Sharma, MD',
-      doctorLocation: currentUser ? `${currentUser.district}, ${currentUser.state}` : reportPayload.phcLocation,
-      patientName: currentUser?.patientName || reportPayload.patientName,
-      patientId: currentUser?.patientId || reportPayload.patientId,
+      doctorLocation: currentUser ? `${currentUser.district}, ${currentUser.state}` : reportPayload.doctorLocation || 'Varanasi, Uttar Pradesh',
+      patientName: reportPayload.patientName || currentUser?.patientName || 'Harish Chandra Verma',
+      patientId: reportPayload.patientId || currentUser?.patientId || 'vyom1234',
     });
     setReportModalOpen(true);
   };
@@ -154,9 +188,26 @@ export default function App() {
           onSelectPreset={setSelectedPreset}
           backendPatientId={backendPatientId}
           backendFacilityId={backendFacilityId}
+          onNavigatePatients={navigateToPatients}
+        />
+      ) : currentPage === 'about' ? (
+        /* VIEW B: DEDICATED ABOUT US & TEAM SHADOW FIGHTERS STORY PAGE */
+        <AboutUsPage
+          onBackToHome={navigateToHome}
+          onNavigateStudio={navigateToStudio}
+        />
+      ) : currentPage === 'patients' ? (
+        /* VIEW C: DEDICATED PATIENT SCREENING REGISTRY & EHR PAGE */
+        <PatientRegistry
+          currentUser={currentUser}
+          onBackToHome={navigateToHome}
+          onNavigateStudio={navigateToStudio}
+          onSelectPatientForStudio={handleSelectPatientForStudio}
+          onViewPatientReport={handleOpenReportModal}
+          onLogout={handleLogout}
         />
       ) : (
-        /* 4. VIEW B: HOMEPAGE OVERVIEW & CLINICAL PIPELINE MODULES (Shown by default after login) */
+        /* VIEW D: HOMEPAGE OVERVIEW & CLINICAL PIPELINE MODULES (Shown by default after login) */
         <>
           {/* Top Full-Width Clean Clinical Navigation Bar */}
           <div className="relative z-40">
@@ -166,6 +217,8 @@ export default function App() {
               onLogout={handleLogout}
               onOpenLogin={() => setShowLoginModal(true)}
               onNavigateStudio={handleLaunchLiveDemo}
+              onNavigateAbout={navigateToAbout}
+              onNavigatePatients={navigateToPatients}
             />
           </div>
 
@@ -189,7 +242,10 @@ export default function App() {
 
           {/* Section D: Clinical & Standards Compliant Footer */}
           <div className="relative z-10">
-            <Footer />
+            <Footer 
+              onNavigateAbout={navigateToAbout} 
+              onNavigatePatients={navigateToPatients}
+            />
           </div>
         </>
       )}
@@ -204,4 +260,3 @@ export default function App() {
     </div>
   );
 }
-
