@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Layers, 
@@ -13,7 +13,9 @@ import {
 import FundusCanvas from './FundusCanvas';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
 
-// Scroll-driven 3D bloom-out / collapse-back Card Box Container
+// Scroll-driven 3D bloom-out Card Box Container
+// One-way reveal: once visible, stays visible to prevent layout thrash
+// feedback loops between IntersectionObserver and scale/translate animations.
 function PipelineCardBox({ id, children, className = "" }) {
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef(null);
@@ -22,24 +24,32 @@ function PipelineCardBox({ id, children, className = "" }) {
     const el = cardRef.current;
     if (!el) return;
 
+    // If already revealed, skip observing entirely
+    if (isVisible) return;
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setIsVisible(entry.isIntersecting);
+        // One-way: only transition TO visible, never back
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.unobserve(el);
+        }
       },
       {
-        threshold: 0.15,
-        rootMargin: "-20px 0px -20px 0px",
+        threshold: 0.08,
+        rootMargin: "0px 0px -40px 0px",
       }
     );
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [isVisible]);
 
   return (
     <div
       ref={cardRef}
       id={id}
+      style={{ willChange: 'transform, opacity' }}
       className={`origin-center transform-gpu transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
         isVisible
           ? 'scale-100 opacity-100 blur-0 translate-y-0 shadow-xl border-slate-200/90'

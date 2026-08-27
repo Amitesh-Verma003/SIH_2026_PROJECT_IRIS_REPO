@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   ArrowLeft, 
   ChevronDown, 
@@ -17,6 +17,8 @@ export default function AboutUsPage({ onBackToHome, onNavigateStudio }) {
   const containerRef = useRef(null);
   const isScrollingRef = useRef(false);
   const touchStartYRef = useRef(0);
+  const accumulatedDeltaRef = useRef(0);
+  const accumulateTimerRef = useRef(null);
 
   const teamMembers = [
     {
@@ -88,7 +90,8 @@ export default function AboutUsPage({ onBackToHome, onNavigateStudio }) {
       sections[clampedIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
       setTimeout(() => {
         isScrollingRef.current = false;
-      }, 750);
+        accumulatedDeltaRef.current = 0;
+      }, 500);
     }
   }, [totalSections]);
 
@@ -109,10 +112,23 @@ export default function AboutUsPage({ onBackToHome, onNavigateStudio }) {
       e.preventDefault();
       if (isScrollingRef.current) return;
 
-      const threshold = 25;
-      if (Math.abs(e.deltaY) < threshold) return;
+      // Accumulate deltaY for trackpads that send many small increments
+      accumulatedDeltaRef.current += e.deltaY;
 
-      if (e.deltaY > 0) {
+      // Clear accumulation after 150ms of no input (gesture ended)
+      clearTimeout(accumulateTimerRef.current);
+      accumulateTimerRef.current = setTimeout(() => {
+        accumulatedDeltaRef.current = 0;
+      }, 150);
+
+      const threshold = 40; // accumulated threshold — trackpads reach this in 2-3 events
+      if (Math.abs(accumulatedDeltaRef.current) < threshold) return;
+
+      // Reset accumulation after triggering
+      const scrollDirection = accumulatedDeltaRef.current;
+      accumulatedDeltaRef.current = 0;
+
+      if (scrollDirection > 0) {
         // Scroll Down -> Next Section
         setActiveSection((prev) => {
           const next = Math.min(prev + 1, totalSections - 1);
@@ -259,7 +275,7 @@ export default function AboutUsPage({ onBackToHome, onNavigateStudio }) {
   return (
     <div 
       ref={containerRef}
-      className="h-screen w-full overflow-y-hidden snap-y snap-mandatory select-none bg-gradient-to-br from-slate-100/95 via-blue-50/70 to-slate-200/90 backdrop-blur-3xl text-slate-900 selection:bg-blue-600 selection:text-white relative"
+      className="h-screen w-full overflow-y-auto snap-y snap-mandatory select-none bg-gradient-to-br from-slate-100/95 via-blue-50/70 to-slate-200/90 backdrop-blur-3xl text-slate-900 selection:bg-blue-600 selection:text-white relative"
     >
       
       {/* Top Floating Header with Blur White Glassmorphism */}
