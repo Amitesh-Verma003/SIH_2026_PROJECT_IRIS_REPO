@@ -48,7 +48,49 @@ export default function FundusCanvas({
       }
       const drawLoadedImage = () => {
         ctx.clearRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
+
+        if (viewMode === 'gradcam') {
+          // Pure Grad-CAM mode: dark background with heatmap only
+          ctx.fillStyle = '#000000';
+          ctx.beginPath();
+          ctx.arc(width / 2, height / 2, width * 0.485, 0, Math.PI * 2);
+          ctx.fill();
+          applyOverlaysAndHeatmap(ctx, width, height);
+          return;
+        }
+
+        // Draw custom image centered and clipped to circular fundus aperture
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(width / 2, height / 2, width * 0.485, 0, Math.PI * 2);
+        ctx.clip();
+
+        if (enhancementMode === 'clahe') {
+          ctx.filter = 'contrast(1.35) saturate(1.2) brightness(1.05)';
+        } else if (enhancementMode === 'illumination') {
+          ctx.filter = 'brightness(1.18) contrast(1.12)';
+        } else {
+          ctx.filter = 'none';
+        }
+
+        // Calculate aspect ratio covering the circle
+        const imgAspect = (img.naturalWidth || width) / (img.naturalHeight || height);
+        let sWidth = img.naturalWidth || width;
+        let sHeight = img.naturalHeight || height;
+        let sx = 0;
+        let sy = 0;
+
+        if (imgAspect > 1) {
+          sWidth = sHeight;
+          sx = ((img.naturalWidth || width) - sWidth) / 2;
+        } else if (imgAspect < 1) {
+          sHeight = sWidth;
+          sy = ((img.naturalHeight || height) - sHeight) / 2;
+        }
+
+        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, width, height);
+        ctx.restore();
+
         applyOverlaysAndHeatmap(ctx, width, height);
       };
 

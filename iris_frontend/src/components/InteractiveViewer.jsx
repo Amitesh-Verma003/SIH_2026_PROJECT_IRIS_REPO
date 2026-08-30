@@ -102,6 +102,9 @@ export default function InteractiveViewer({
       }
       setIsApproved(false);
       triggerScanAnimation();
+      if (onSelectPreset) {
+        onSelectPreset(FUNDUS_PRESETS[selectedPresetIndex]);
+      }
     }
     if (e.target) e.target.value = '';
   };

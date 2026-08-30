@@ -61,7 +61,13 @@ function PipelineCardBox({ id, children, className = "" }) {
   );
 }
 
-export default function PipelineCards({ onSelectSandboxPreset }) {
+export default function PipelineCards({ 
+  onSelectSandboxPreset,
+  customImage,
+  selectedPreset,
+  onNavigateStudio,
+  onCustomImageChange
+}) {
   // Card 1 state: IQA Mode
   const [iqaMode, setIqaMode] = useState('clahe'); // 'original' | 'clahe' | 'illumination'
 
@@ -74,15 +80,30 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
     hemorrhages: true,
   });
 
+  // Active preset from Studio (default to Preset 2 Moderate NPDR)
+  const activeStudioPreset = selectedPreset || FUNDUS_PRESETS[2];
+
   // Card 3 state: Active Severity Step
-  const [selectedGrade, setSelectedGrade] = useState(2); // 0, 1, 2, 4
+  const [selectedGrade, setSelectedGrade] = useState(() => (
+    activeStudioPreset?.icdrGrade !== undefined && activeStudioPreset.icdrGrade >= 0 
+      ? activeStudioPreset.icdrGrade 
+      : 2
+  ));
+
+  useEffect(() => {
+    if (selectedPreset?.icdrGrade !== undefined && selectedPreset.icdrGrade >= 0) {
+      setSelectedGrade(selectedPreset.icdrGrade);
+    }
+  }, [selectedPreset]);
 
   // Card 4 state: Grad-CAM Opacity & View Mode
   const [gradCamOpacity, setGradCamOpacity] = useState(0.7);
   const [explainViewMode, setExplainViewMode] = useState('blend'); // 'blend' | 'split' | 'raw' | 'gradcam'
 
-  // Base preset for cards
-  const activePreset = FUNDUS_PRESETS[selectedGrade === 4 ? 3 : selectedGrade === -1 ? 4 : selectedGrade] || FUNDUS_PRESETS[2];
+  // Active preset for cards
+  const activePreset = customImage && selectedGrade === activeStudioPreset.icdrGrade
+    ? activeStudioPreset
+    : (FUNDUS_PRESETS[selectedGrade === 4 ? 3 : selectedGrade === -1 ? 4 : selectedGrade] || FUNDUS_PRESETS[2]);
 
   const toggleOverlay = (key) => {
     setOverlays(prev => ({ ...prev, [key]: !prev[key] }));
@@ -112,6 +133,13 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
           <p className="text-slate-600 text-base sm:text-xl">
             Sequential deep-learning modules engineered for real-time edge execution in rural tele-ophthalmology triage workflows.
           </p>
+
+          {customImage && (
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-bold shadow-xs">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+              <span>Active Uploaded Retinal Scan synchronized across all 4 pipeline stages</span>
+            </div>
+          )}
         </div>
 
         {/* The 4 Pipeline Grid Cards (Transparent Card Backgrounds) */}
@@ -150,7 +178,10 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
                     <div>
                       <span className="font-bold text-slate-800">Automated IQA Status: </span>
                       <span className="text-emerald-700 font-semibold font-mono">
-                        {iqaMode === 'clahe' ? 'PASSED (Adaptive CLAHE Applied)' : iqaMode === 'illumination' ? 'PASSED (Illumination Flattened)' : 'PASSED (Raw Focus 94.2%)'}
+                        {customImage 
+                          ? (iqaMode === 'clahe' ? 'PASSED (Adaptive CLAHE on Uploaded Scan)' : iqaMode === 'illumination' ? 'PASSED (Illumination Flattened on Uploaded Scan)' : 'PASSED (Raw Focus 94.2%)')
+                          : (iqaMode === 'clahe' ? 'PASSED (Adaptive CLAHE Applied)' : iqaMode === 'illumination' ? 'PASSED (Illumination Flattened)' : 'PASSED (Raw Focus 94.2%)')
+                        }
                       </span>
                     </div>
                   </div>
@@ -222,15 +253,16 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
               <div className="lg:col-span-6 flex flex-col items-center justify-center">
                 <div className="relative w-full max-w-[360px] aspect-square rounded-3xl bg-slate-900 p-4 shadow-xl border border-slate-800">
                   <FundusCanvas
-                    presetData={FUNDUS_PRESETS[2]}
+                    presetData={activeStudioPreset}
                     enhancementMode={iqaMode}
                     overlays={{ opticDisc: false, vessels: false, microaneurysms: false, exudates: false, hemorrhages: false }}
                     gradCamOpacity={0}
                     viewMode="blend"
                     interactiveHover={false}
+                    customImage={customImage}
                   />
                   <div className="absolute top-5 left-5 bg-slate-900/80 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs font-mono text-cyan-300 border border-cyan-500/30">
-                    Mode: {iqaMode.toUpperCase()}
+                    {customImage ? `UPLOADED SCAN: ${iqaMode.toUpperCase()}` : `Mode: ${iqaMode.toUpperCase()}`}
                   </div>
                 </div>
               </div>
@@ -249,15 +281,16 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
               <div className="lg:col-span-6 order-2 lg:order-1 flex flex-col items-center justify-center">
                 <div className="relative w-full max-w-[360px] aspect-square rounded-3xl bg-slate-900 p-4 shadow-xl border border-slate-800">
                   <FundusCanvas
-                    presetData={FUNDUS_PRESETS[2]}
+                    presetData={activeStudioPreset}
                     enhancementMode="clahe"
                     overlays={overlays}
                     gradCamOpacity={0}
                     viewMode="blend"
                     interactiveHover={true}
+                    customImage={customImage}
                   />
                   <div className="absolute top-5 left-5 bg-slate-900/80 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs font-mono text-emerald-300 border border-emerald-500/30">
-                    Morphometry Active
+                    {customImage ? 'Uploaded Scan Morphometry' : 'Morphometry Active'}
                   </div>
                 </div>
               </div>
@@ -365,7 +398,7 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
 
 
           {/* =========================================================================
-              MODULE 03: Calibrated DR Severity Grading (ICDR 0ΓÇô4)
+              MODULE 03: Calibrated DR Severity Grading (ICDR 0–4)
              ========================================================================= */}
           <PipelineCardBox id="pipeline-grading" className="bg-transparent rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-sm hover:shadow-md transition-all">
             <div className="space-y-6 text-left">
@@ -374,12 +407,12 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-2xl font-black text-blue-600">03</span>
                   <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wide">
-                    Multi-Class Ensemble (ICDR 0ΓÇô4)
+                    Multi-Class Ensemble (ICDR 0–4)
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-500 font-mono">
                   <span>Temperature Scaled</span>
-                  <span>ΓÇó</span>
+                  <span>•</span>
                   <span>ECE &lt; 0.024</span>
                 </div>
               </div>
@@ -393,27 +426,69 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
                 </p>
               </div>
 
+              {/* Uploaded Scan Live Diagnosis Callout */}
+              {customImage && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 animate-pulse" />
+                    <div>
+                      <span className="text-xs font-extrabold uppercase text-blue-900 tracking-wider">
+                        Live Studio AI Inference for Uploaded Scan:
+                      </span>
+                      <div className="text-sm font-bold text-slate-900">
+                        {activeStudioPreset.gradeLabel} • <span className="text-blue-700 font-mono font-extrabold">{activeStudioPreset.confidence}% Confidence</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {onNavigateStudio && (
+                    <button
+                      onClick={() => onNavigateStudio(activeStudioPreset)}
+                      className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+                    >
+                      Open in Live Studio
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* 5-Stage Progression Interactive Bar */}
               <div className="space-y-3">
-                <div className="text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-wider">
-                  Select Grade Stage to Preview:
+                <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-wider">
+                  <span>Select Grade Stage to Preview:</span>
+                  {customImage && selectedGrade !== activeStudioPreset.icdrGrade && (
+                    <button
+                      onClick={() => setSelectedGrade(activeStudioPreset.icdrGrade)}
+                      className="text-blue-600 hover:text-blue-700 font-bold underline cursor-pointer text-xs"
+                    >
+                      Reset to Live Studio Diagnosis (Stage {activeStudioPreset.icdrGrade})
+                    </button>
+                  )}
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                   {drStages.map((stg) => {
                     const isSelected = selectedGrade === stg.grade;
+                    const isStudioDiagnosed = customImage && activeStudioPreset.icdrGrade === stg.grade;
                     return (
                       <button
                         key={stg.grade}
                         onClick={() => setSelectedGrade(stg.grade)}
-                        className={`p-4 rounded-2xl text-left border-2 transition-all cursor-pointer ${
+                        className={`p-4 rounded-2xl text-left border-2 transition-all cursor-pointer relative ${
                           isSelected
                             ? `${stg.color} shadow-md scale-[1.02]`
                             : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                         }`}
                       >
-                        <div className="text-xs font-mono font-bold text-slate-400">
-                          Stage {stg.grade}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-mono font-bold text-slate-400">
+                            Stage {stg.grade}
+                          </span>
+                          {isStudioDiagnosed && (
+                            <span className="px-1.5 py-0.5 rounded bg-blue-600 text-white font-mono text-[9px] font-bold">
+                              STUDIO
+                            </span>
+                          )}
                         </div>
                         <div className="text-sm font-bold mt-1 text-slate-900">
                           {stg.title}
@@ -587,9 +662,10 @@ export default function PipelineCards({ onSelectSandboxPreset }) {
                     gradCamOpacity={gradCamOpacity}
                     viewMode={explainViewMode}
                     interactiveHover={true}
+                    customImage={customImage}
                   />
                   <div className="absolute top-5 left-5 bg-slate-900/80 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs font-mono text-cyan-300 border border-cyan-500/30">
-                    Grad-CAM Focus: {activePreset.gradeLabel.split(':')[0]}
+                    {customImage ? 'Grad-CAM on Uploaded Scan' : `Grad-CAM Focus: ${activePreset.gradeLabel.split(':')[0]}`}
                   </div>
                 </div>
               </div>

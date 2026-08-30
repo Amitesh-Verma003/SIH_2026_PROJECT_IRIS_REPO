@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   UploadCloud, 
   ShieldCheck, 
@@ -6,15 +6,26 @@ import {
   CheckCircle2, 
   ArrowRight, 
   Sparkles,
-  Layers
+  Layers,
+  Activity,
+  XCircle,
+  Eye
 } from 'lucide-react';
 import FundusCanvas from './FundusCanvas';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
 import { getDashboardStats } from '../api/stats';
 
-export default function HeroSection({ onUploadClick, onExplorePipelineClick }) {
-  // Use Preset 2 (Moderate NPDR with Exudates) for high-impact live preview on tablet
-  const heroPreset = FUNDUS_PRESETS[2];
+export default function HeroSection({ 
+  onUploadClick, 
+  onExplorePipelineClick,
+  customImage,
+  onCustomImageChange,
+  selectedPreset,
+  onNavigateStudio
+}) {
+  // Use selectedPreset from Studio (or default to Preset 2 Moderate NPDR)
+  const activePreset = selectedPreset || FUNDUS_PRESETS[2];
+  const fileInputRef = useRef(null);
 
   // Live dashboard stats from backend (with sensible fallbacks)
   const [liveStats, setLiveStats] = useState({
@@ -29,8 +40,41 @@ export default function HeroSection({ onUploadClick, onExplorePipelineClick }) {
       .catch((err) => console.warn('[IRIS] Dashboard stats unavailable:', err.message));
   }, []);
 
+  const handleHeroFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      if (onCustomImageChange) {
+        onCustomImageChange(url);
+      }
+      if (onNavigateStudio) {
+        onNavigateStudio(activePreset);
+      } else if (onUploadClick) {
+        onUploadClick();
+      }
+    }
+    if (e.target) e.target.value = '';
+  };
+
+  const handleHeroUploadButtonClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    } else if (onUploadClick) {
+      onUploadClick();
+    }
+  };
+
   return (
     <section id="overview" className="relative overflow-hidden pt-10 pb-20 md:pt-16 md:pb-28 bg-gradient-to-b from-white via-slate-50 to-slate-100/70 bg-grid-slate">
+      {/* Hidden file input for direct Retinal Scan Upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleHeroFileUpload}
+        className="hidden"
+      />
+
       {/* Soft radial glow in background */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-radial-glow pointer-events-none" />
 
@@ -115,13 +159,23 @@ export default function HeroSection({ onUploadClick, onExplorePipelineClick }) {
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-4 pt-3">
               <button
-                onClick={onUploadClick}
+                onClick={handleHeroUploadButtonClick}
                 className="inline-flex items-center justify-center gap-3 px-7 py-4 rounded-2xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-lg shadow-xl shadow-blue-600/30 hover:shadow-2xl hover:shadow-blue-600/40 hover:-translate-y-0.5 transition-all cursor-pointer group"
               >
                 <UploadCloud className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                <span>Upload Retinal Fundus</span>
+                <span>{customImage ? 'Upload New Retinal Scan' : 'Upload Retinal Scan'}</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
+
+              {customImage && onNavigateStudio && (
+                <button
+                  onClick={() => onNavigateStudio(activePreset)}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg shadow-lg shadow-emerald-600/25 transition-all cursor-pointer"
+                >
+                  <Activity className="w-5 h-5" />
+                  <span>Open in Live Studio</span>
+                </button>
+              )}
 
               <button
                 onClick={onExplorePipelineClick}
@@ -158,10 +212,14 @@ export default function HeroSection({ onUploadClick, onExplorePipelineClick }) {
               <div className="flex items-center justify-between px-4 py-2.5 mb-3 bg-slate-900 text-white rounded-2xl text-xs font-mono shadow-sm">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-bold text-slate-100">TELE-OPHTH LIVE</span>
+                  <span className="font-bold text-slate-100">
+                    {customImage ? 'LIVE UPLOADED SCAN' : 'TELE-OPHTH LIVE'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-300">
-                  <span className="font-semibold text-slate-200">PHC-UP-04</span>
+                  <span className="font-semibold text-slate-200">
+                    {customImage ? 'STUDIO SYNCED' : 'PHC-UP-04'}
+                  </span>
                   <span className="text-slate-500">•</span>
                   <span className="text-emerald-400 font-bold">42 FPS EDGE</span>
                 </div>
@@ -174,40 +232,45 @@ export default function HeroSection({ onUploadClick, onExplorePipelineClick }) {
                 <div className="flex items-center justify-between border-b border-slate-300 pb-3">
                   <div className="text-left">
                     <div className="text-base font-extrabold text-slate-950 flex items-center gap-2">
-                      <span>{heroPreset.patientName}</span>
+                      <span>{activePreset.patientName}</span>
                       <span className="px-2.5 py-0.5 rounded-md text-xs bg-blue-600 text-white font-mono font-bold shadow-xs">
-                        {heroPreset.patientId}
+                        {activePreset.patientId}
                       </span>
                     </div>
                     <div className="text-xs text-slate-600 flex items-center gap-2 mt-1 font-semibold">
-                      <span>{heroPreset.age}y {heroPreset.gender}</span>
+                      <span>{activePreset.age}y {activePreset.gender}</span>
                       <span>•</span>
-                      <span className="text-blue-700 font-bold">{heroPreset.eyeSide}</span>
+                      <span className="text-blue-700 font-bold">{activePreset.eyeSide}</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold bg-amber-500 text-white shadow-xs">
-                      Moderate Risk
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold shadow-xs text-white ${
+                      activePreset.referable 
+                        ? activePreset.icdrGrade >= 4 ? 'bg-rose-600' : 'bg-amber-500' 
+                        : 'bg-emerald-600'
+                    }`}>
+                      {activePreset.severityCategory || 'Moderate Risk'}
                     </span>
                   </div>
                 </div>
 
-                {/* Retinal Fundus Preview with Active Scanning Line */}
+                {/* Retinal Fundus Preview with Active Scanning Line & Upload Support */}
                 <div className="relative aspect-square max-w-[320px] mx-auto rounded-2xl overflow-hidden bg-black border-2 border-slate-800 shadow-md">
                   <FundusCanvas
-                    presetData={heroPreset}
+                    presetData={activePreset}
                     enhancementMode="clahe"
                     overlays={{ opticDisc: true, vessels: true, microaneurysms: true, exudates: true, hemorrhages: true }}
                     gradCamOpacity={0.65}
                     viewMode="blend"
                     showScanline={true}
                     interactiveHover={false}
+                    customImage={customImage}
                   />
                   <div className="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs text-cyan-300 font-mono font-bold border border-cyan-500/40">
-                    Grad-CAM + CLAHE
+                    {customImage ? 'Uploaded Scan + Grad-CAM' : 'Grad-CAM + CLAHE'}
                   </div>
                   <div className="absolute bottom-3 right-3 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs text-amber-300 font-mono font-bold border border-amber-500/40">
-                    Exudates: 12 Detected
+                    {customImage ? 'Live Inference Active' : `Exudates: ${activePreset.lesions.hardExudates || 12} Detected`}
                   </div>
                 </div>
 
@@ -215,25 +278,45 @@ export default function HeroSection({ onUploadClick, onExplorePipelineClick }) {
                 <div className="p-4 rounded-2xl bg-slate-900 text-white border border-slate-800 text-left space-y-2 shadow-md">
                   <div className="flex items-center justify-between text-xs sm:text-sm">
                     <span className="text-slate-300 font-semibold">ICDR Grade:</span>
-                    <span className="font-extrabold text-amber-400 font-mono text-sm sm:text-base">Level 2 (Moderate NPDR)</span>
+                    <span className="font-extrabold text-amber-400 font-mono text-sm sm:text-base">
+                      {activePreset.gradeLabel}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between text-xs sm:text-sm">
                     <span className="text-slate-300 font-semibold">AI Confidence:</span>
-                    <span className="font-extrabold text-emerald-400 font-mono text-sm sm:text-base">96.8% Softmax</span>
+                    <span className="font-extrabold text-emerald-400 font-mono text-sm sm:text-base">
+                      {activePreset.confidence}% Softmax
+                    </span>
                   </div>
                   <div className="flex items-center justify-between text-xs sm:text-sm">
                     <span className="text-slate-300 font-semibold">Referral Action:</span>
-                    <span className="font-extrabold text-rose-400">Specialist Review (4 Wks)</span>
+                    <span className={`font-extrabold ${activePreset.referable ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      {activePreset.referralText}
+                    </span>
                   </div>
                 </div>
 
-                {/* Doctor Sign-off Status */}
+                {/* Doctor Sign-off Status & Custom Scan Controls */}
                 <div className="flex items-center justify-between pt-1 text-xs font-bold">
                   <div className="flex items-center gap-1.5 text-emerald-700">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>IQA Verified (Pass 94%)</span>
+                    <span>{customImage ? 'Live AI Ingested (Pass 94%)' : 'IQA Verified (Pass 94%)'}</span>
                   </div>
-                  <span className="font-mono text-slate-700 font-bold">&lt;24s Triage SLA</span>
+
+                  {customImage ? (
+                    <button
+                      onClick={() => {
+                        if (onCustomImageChange) onCustomImageChange(null);
+                      }}
+                      className="text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer font-bold"
+                      title="Clear uploaded scan and reset to preset"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>Reset Scan</span>
+                    </button>
+                  ) : (
+                    <span className="font-mono text-slate-700 font-bold">&lt;24s Triage SLA</span>
+                  )}
                 </div>
 
               </div>

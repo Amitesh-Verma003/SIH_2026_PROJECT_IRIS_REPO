@@ -274,6 +274,10 @@ export default function App() {
             <HeroSection 
               onUploadClick={handleUploadClick}
               onExplorePipelineClick={handleExplorePipelineClick}
+              customImage={customImage}
+              onCustomImageChange={handleCustomImageChange}
+              selectedPreset={selectedPreset}
+              onNavigateStudio={navigateToStudio}
             />
 
             {/* Section B: The Core Sequential Pipeline Modules */}
@@ -281,6 +285,10 @@ export default function App() {
               onSelectSandboxPreset={(preset) => {
                 navigateToStudio(preset);
               }}
+              customImage={customImage}
+              selectedPreset={selectedPreset}
+              onNavigateStudio={navigateToStudio}
+              onCustomImageChange={handleCustomImageChange}
             />
 
           </main>
