@@ -318,14 +318,17 @@ class GradCamResult(BaseModel):
 
 
 class LesionEstimate(BaseModel):
-    microaneurysms: int = 0
-    hemorrhages: int = 0
-    hard_exudates: int = 0
-    cotton_wool_spots: int = 0
+    model_config = ConfigDict(extra="allow")
+    microaneurysms: Any = 0
+    hemorrhages: Any = 0
+    hard_exudates: Any = 0
+    cotton_wool_spots: Any = 0
     neovascularization: str = "None"
+    breakdown: Optional[dict[str, Any]] = None
 
 
 class DrPredictionOut(BaseModel):
+    model_config = ConfigDict(extra="allow")
     model_name: str = "iris_dr_efficientnet_b0"
     model_architecture: str = "EfficientNet-B0"
     model_version: str = "1.0.0"
@@ -340,7 +343,8 @@ class DrPredictionOut(BaseModel):
     softmax_distribution: list[SoftmaxClassItem]
     iqa: IqaResult
     grad_cam: GradCamResult
-    lesions: LesionEstimate
+    lesions: dict[str, Any]
+    landmarks: Optional[dict[str, Any]] = None
     session_id: Optional[UUID] = None
     image_id: Optional[UUID] = None
     grading_id: Optional[UUID] = None
