@@ -17,13 +17,17 @@ import {
   ArrowRight,
   Info,
   Calendar,
-  Check
+  Check,
+  Cpu,
+  Zap,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import FundusCanvas from './FundusCanvas';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
 import { createScreeningSession, addFundusImage } from '../api/screenings';
-import { createGrading } from '../api/gradings';
+import { createGrading, predictDrGrading, getModelInfo } from '../api/gradings';
 import { createReferral } from '../api/referrals';
 
 export default function InteractiveViewer({ 
@@ -49,6 +53,13 @@ export default function InteractiveViewer({
   const [backendSessionId, setBackendSessionId] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Live PyTorch Model Inference State
+  const [liveInferenceResult, setLiveInferenceResult] = useState(null);
+  const [isInferencing, setIsInferencing] = useState(false);
+  const [modelInfo, setModelInfo] = useState(null);
+  const [inferenceError, setInferenceError] = useState(null);
+  const [inferenceSource, setInferenceSource] = useState(null);
+
   const fileInputRef = useRef(null);
 
   const rawPreset = FUNDUS_PRESETS[selectedPresetIndex] || FUNDUS_PRESETS[0];
@@ -56,7 +67,16 @@ export default function InteractiveViewer({
     ...rawPreset,
     patientName: currentUser?.patientName || rawPreset.patientName,
     patientId: currentUser?.patientId || rawPreset.patientId,
+    ...(liveInferenceResult || {}),
+    isLiveModelInference: Boolean(liveInferenceResult),
   };
+
+  // Fetch trained model metadata on component mount
+  useEffect(() => {
+    getModelInfo()
+      .then((data) => setModelInfo(data))
+      .catch((err) => console.info('[IRIS] Model metadata loading...', err.message));
+  }, []);
 
   useEffect(() => {
     if (currentPreset) {
@@ -86,11 +106,75 @@ export default function InteractiveViewer({
 
   const handlePresetSelect = (index) => {
     setSelectedPresetIndex(index);
-    // Keep customImage so selecting different captures does not clear the uploaded scan
+    setLiveInferenceResult(null);
+    setInferenceError(null);
+    setInferenceSource(null);
     setIsApproved(false);
     setOverrideGrade(null);
     triggerScanAnimation();
     if (onSelectPreset) onSelectPreset(FUNDUS_PRESETS[index]);
+  };
+
+  // Core function to execute live PyTorch model inference
+  const runModelInference = async (fileOrBlob, label = 'Retinal Fundus Image') => {
+    setIsInferencing(true);
+    setInferenceError(null);
+    triggerScanAnimation();
+
+    try {
+      const data = await predictDrGrading({
+        file: fileOrBlob,
+        patientId: backendPatientId,
+        facilityId: backendFacilityId,
+        eye: activeData.eyeSide?.includes('Right') ? 'right' : 'left',
+      });
+
+      console.log('[IRIS AI] Live model prediction received:', data);
+
+      setLiveInferenceResult({
+        icdrGrade: data.icdr_level,
+        gradeLabel: data.grade_label,
+        severityCategory: data.severity_category,
+        confidence: data.confidence_score,
+        referable: data.referable_flag,
+        vtdr: data.vtdr_flag,
+        urgencyLevel: data.urgency_level,
+        referralText: data.urgency_level === 'EMERGENCY' 
+          ? 'Emergency 24-48h Specialist Care (PDR)' 
+          : data.referable_flag 
+          ? 'Specialist Tele-Ophthalmology Referral (Referable DR)' 
+          : 'Routine Annual Follow-up (Non-Referable)',
+        doctorRecommendation: data.doctor_recommendation,
+        softmaxDistribution: data.softmax_distribution,
+        iqa: data.iqa,
+        gradCam: {
+          hotspots: data.grad_cam?.hotspots || [],
+          aiExplanation: data.grad_cam?.ai_explanation || '',
+          heatmapBase64: data.grad_cam?.heatmap_base64 || null,
+        },
+        lesions: {
+          microaneurysms: data.lesions?.microaneurysms ?? 0,
+          hemorrhages: data.lesions?.hemorrhages ?? 0,
+          hardExudates: data.lesions?.hard_exudates ?? 0,
+          cottonWoolSpots: data.lesions?.cotton_wool_spots ?? 0,
+          neovascularization: data.lesions?.neovascularization ?? 'None',
+        },
+        modelName: data.model_name,
+        modelVersion: data.model_version,
+        modelArchitecture: data.model_architecture,
+        backendSessionId: data.session_id,
+      });
+      setInferenceSource(label);
+    } catch (err) {
+      console.warn('[IRIS AI] Live inference fallback:', err.message);
+      setInferenceError(
+        err.message?.includes('Failed to fetch')
+          ? 'Backend offline: Start iris_backend (uvicorn app.main:app --reload) for live PyTorch inference.'
+          : `Model inference error: ${err.message}`
+      );
+    } finally {
+      setIsInferencing(false);
+    }
   };
 
   const handleFileUpload = (e) => {
@@ -101,12 +185,29 @@ export default function InteractiveViewer({
         onCustomImageChange(url);
       }
       setIsApproved(false);
-      triggerScanAnimation();
+      setOverrideGrade(null);
       if (onSelectPreset) {
         onSelectPreset(FUNDUS_PRESETS[selectedPresetIndex]);
       }
+      // Execute live model inference on uploaded image
+      runModelInference(file, file.name);
     }
     if (e.target) e.target.value = '';
+  };
+
+  const handleRunModelOnCurrentScan = async () => {
+    if (customImage) {
+      try {
+        const res = await fetch(customImage);
+        const blob = await res.blob();
+        runModelInference(blob, 'Custom Fundus Scan');
+      } catch (e) {
+        console.warn('Could not fetch custom blob', e);
+        triggerScanAnimation();
+      }
+    } else {
+      triggerScanAnimation();
+    }
   };
 
   const handleApproveAndExport = async () => {
@@ -253,15 +354,26 @@ export default function InteractiveViewer({
                 <span>Upload Retinal Scan</span>
               </button>
 
+              {/* Run Live Model Diagnostic Button */}
+              <button
+                onClick={handleRunModelOnCurrentScan}
+                disabled={isScanning || isInferencing}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition-all cursor-pointer disabled:opacity-50"
+                title="Run Trained EfficientNet-B0 PyTorch Inference"
+              >
+                <Zap className={`w-3.5 h-3.5 text-yellow-300 ${isInferencing ? 'animate-spin' : 'animate-pulse'}`} />
+                <span>{isInferencing ? 'Running AI Model...' : 'Run Model Diagnostic'}</span>
+              </button>
+
               {/* Re-Scan Trigger */}
               <button
                 onClick={triggerScanAnimation}
                 disabled={isScanning}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold text-xs border border-slate-200 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                title="Run AI 2.0s Deep-Scan Inferencing"
+                title="Simulate AI Saliency Scan Sweep"
               >
                 <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                <span>{isScanning ? 'Inferencing...' : 'Re-Scan (2.0s)'}</span>
+                <span>Sweep Scan</span>
               </button>
 
               {/* Sample Selector without revealing diagnosis upfront */}
@@ -284,6 +396,7 @@ export default function InteractiveViewer({
                 <button
                   onClick={() => {
                     if (onCustomImageChange) onCustomImageChange(null);
+                    setLiveInferenceResult(null);
                   }}
                   className="px-3.5 py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition-all cursor-pointer"
                 >
@@ -493,17 +606,54 @@ export default function InteractiveViewer({
             {/* DR Severity & Triage Result Card */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
               
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  AI Triage Assessment
-                </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                  activeData.referable 
-                    ? 'bg-rose-100 text-rose-800 border border-rose-200' 
-                    : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                }`}>
-                  {activeData.referable ? 'REFERABLE DR' : 'NON-REFERABLE'}
-                </span>
+              {/* Card Header with Model Status */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    AI Triage Assessment
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                    activeData.referable 
+                      ? 'bg-rose-100 text-rose-800 border border-rose-200' 
+                      : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                  }`}>
+                    {activeData.referable ? 'REFERABLE DR' : 'NON-REFERABLE'}
+                  </span>
+                </div>
+
+                {/* Live Model Badge */}
+                {activeData.isLiveModelInference ? (
+                  <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white font-mono text-[11px] font-bold shadow-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+                      <span>LIVE MODEL: {activeData.modelArchitecture || 'EfficientNet-B0'}</span>
+                    </div>
+                    <span className="bg-white/20 px-2 py-0.5 rounded-md text-[10px]">
+                      {modelInfo?.training?.best_val_qwk ? `Val QWK: ${modelInfo.training.best_val_qwk}` : 'v1.0.0'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between px-3 py-1 rounded-xl bg-slate-100 text-slate-600 font-mono text-[11px]">
+                    <div className="flex items-center gap-1.5">
+                      <Cpu className="w-3 h-3 text-blue-600" />
+                      <span>Model: EfficientNet-B0 (APTOS 2019)</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">
+                      {customImage ? 'Ready for live inference' : 'Preset Preview'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Inference Error Notification */}
+                {inferenceError && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="leading-tight">
+                      <span className="font-bold">Notice: </span>
+                      {inferenceError}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Maximum Softmax Confidence Display */}

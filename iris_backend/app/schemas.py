@@ -283,3 +283,77 @@ class ReferralOut(ReferralBase, ORMBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+# ------------------------------------------------------------
+# Live Model Prediction Schemas
+# ------------------------------------------------------------
+
+class SoftmaxClassItem(BaseModel):
+    grade: int
+    label: str
+    prob: float
+    color: str
+
+
+class IqaResult(BaseModel):
+    focus_score: float
+    illumination_score: float
+    fov_score: float
+    overall_status: str
+    feedback: str
+
+
+class GradCamHotspot(BaseModel):
+    x: float
+    y: float
+    r: float
+    intensity: float
+
+
+class GradCamResult(BaseModel):
+    hotspots: list[GradCamHotspot] = Field(default_factory=list)
+    ai_explanation: str
+    heatmap_base64: Optional[str] = None
+
+
+class LesionEstimate(BaseModel):
+    microaneurysms: int = 0
+    hemorrhages: int = 0
+    hard_exudates: int = 0
+    cotton_wool_spots: int = 0
+    neovascularization: str = "None"
+
+
+class DrPredictionOut(BaseModel):
+    model_name: str = "iris_dr_efficientnet_b0"
+    model_architecture: str = "EfficientNet-B0"
+    model_version: str = "1.0.0"
+    icdr_level: int
+    grade_label: str
+    severity_category: str
+    confidence_score: float
+    referable_flag: bool
+    vtdr_flag: bool
+    urgency_level: str
+    doctor_recommendation: str
+    softmax_distribution: list[SoftmaxClassItem]
+    iqa: IqaResult
+    grad_cam: GradCamResult
+    lesions: LesionEstimate
+    session_id: Optional[UUID] = None
+    image_id: Optional[UUID] = None
+    grading_id: Optional[UUID] = None
+    referral_id: Optional[UUID] = None
+
+
+class ModelInfoOut(BaseModel):
+    model_name: str
+    model_architecture: str
+    version: str
+    num_classes: int
+    class_names: list[str]
+    image_size: int
+    training: dict[str, Any]
+    class_distribution: dict[str, int]
+

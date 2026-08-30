@@ -10,7 +10,10 @@ const BASE = '/api';
 
 async function request(path, options = {}) {
   const url = `${BASE}${path}`;
-  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  const isFormData = options.body instanceof FormData;
+  const headers = isFormData
+    ? { ...options.headers }
+    : { 'Content-Type': 'application/json', ...options.headers };
 
   const res = await fetch(url, { ...options, headers });
 
@@ -36,6 +39,10 @@ export function post(path, body) {
   return request(path, { method: 'POST', body: JSON.stringify(body) });
 }
 
+export function postFormData(path, formData) {
+  return request(path, { method: 'POST', body: formData });
+}
+
 export function patch(path, body) {
   return request(path, { method: 'PATCH', body: JSON.stringify(body) });
 }
@@ -43,3 +50,4 @@ export function patch(path, body) {
 export function del(path) {
   return request(path, { method: 'DELETE' });
 }
+
