@@ -1,0 +1,44 @@
+{
+  "model_name": "iris_dr_efficientnet_b0",
+  "model_architecture": "EfficientNet-B0",
+  "version": "1.0.0",
+  "num_classes": 5,
+  "class_names": [
+    "0 - No DR",
+    "1 - Mild",
+    "2 - Moderate",
+    "3 - Severe",
+    "4 - Proliferative DR"
+  ],
+  "image_size": 224,
+  "normalization": {
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ]
+  },
+  "training": {
+    "dataset": "APTOS 2019 Blindness Detection (part 6)",
+    "total_images": 439,
+    "train_images": 351,
+    "val_images": 88,
+    "best_val_qwk": 0.7155,
+    "best_val_accuracy": 0.6136,
+    "total_epochs_run": 20,
+    "training_time_minutes": 30.4,
+    "device": "Apple MPS (Metal)"
+  },
+  "class_distribution": {
+    "0 - No DR": 212,
+    "1 - Mild": 50,
+    "2 - Moderate": 125,
+    "3 - Severe": 20,
+    "4 - Proliferative DR": 32
+  }
+}

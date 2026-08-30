@@ -1,0 +1,64 @@
+
+──────────────────────────────────────────────────────────────────────
+  PHASE 1: Head Warmup (backbone frozen)
+──────────────────────────────────────────────────────────────────────
+  Epoch  1/25 | Train Loss: 1.4061  Acc: 0.2137 | Val Loss: 1.6895  Acc: 0.0682  QWK: 0.0995 | LR: 0.000905
+  ✅ New best QWK: 0.0995 — model saved!
+  Epoch  2/25 | Train Loss: 1.2610  Acc: 0.2536 | Val Loss: 1.5672  Acc: 0.1932  QWK: 0.2600 | LR: 0.000655
+  ✅ New best QWK: 0.2600 — model saved!
+  Epoch  3/25 | Train Loss: 1.1415  Acc: 0.3077 | Val Loss: 1.5465  Acc: 0.3068  QWK: 0.5284 | LR: 0.000345
+  ✅ New best QWK: 0.5284 — model saved!
+  Epoch  4/25 | Train Loss: 1.1771  Acc: 0.3105 | Val Loss: 1.4732  Acc: 0.3864  QWK: 0.5541 | LR: 0.000095
+  ✅ New best QWK: 0.5541 — model saved!
+  Epoch  5/25 | Train Loss: 1.1806  Acc: 0.3276 | Val Loss: 1.4626  Acc: 0.3636  QWK: 0.4890 | LR: 0.000000
+
+──────────────────────────────────────────────────────────────────────
+  PHASE 2: Full Fine-Tuning (all layers unfrozen)
+──────────────────────────────────────────────────────────────────────
+  Epoch  6/25 | Train Loss: 1.1405  Acc: 0.3818 | Val Loss: 1.3708  Acc: 0.4773  QWK: 0.6352 | LR: 0.000099
+  ✅ New best QWK: 0.6352 — model saved!
+  Epoch  7/25 | Train Loss: 1.0075  Acc: 0.4644 | Val Loss: 1.3004  Acc: 0.5682  QWK: 0.7083 | LR: 0.000098
+  ✅ New best QWK: 0.7083 — model saved!
+  Epoch  8/25 | Train Loss: 0.8749  Acc: 0.5926 | Val Loss: 1.2366  Acc: 0.5909  QWK: 0.6962 | LR: 0.000095
+  Epoch  9/25 | Train Loss: 0.7944  Acc: 0.6154 | Val Loss: 1.2474  Acc: 0.5795  QWK: 0.6990 | LR: 0.000090
+  Epoch 10/25 | Train Loss: 0.7332  Acc: 0.6011 | Val Loss: 1.2304  Acc: 0.6023  QWK: 0.6988 | LR: 0.000085
+  Epoch 11/25 | Train Loss: 0.5454  Acc: 0.7151 | Val Loss: 1.2181  Acc: 0.5909  QWK: 0.6966 | LR: 0.000079
+  Epoch 12/25 | Train Loss: 0.5855  Acc: 0.6838 | Val Loss: 1.2028  Acc: 0.5795  QWK: 0.6674 | LR: 0.000073
+  Epoch 13/25 | Train Loss: 0.4710  Acc: 0.7123 | Val Loss: 1.1832  Acc: 0.6136  QWK: 0.7155 | LR: 0.000065
+  ✅ New best QWK: 0.7155 — model saved!
+  Epoch 14/25 | Train Loss: 0.4934  Acc: 0.7179 | Val Loss: 1.1395  Acc: 0.5909  QWK: 0.6845 | LR: 0.000058
+  Epoch 15/25 | Train Loss: 0.4705  Acc: 0.7009 | Val Loss: 1.1341  Acc: 0.5909  QWK: 0.6755 | LR: 0.000050
+  Epoch 16/25 | Train Loss: 0.3664  Acc: 0.7578 | Val Loss: 1.1429  Acc: 0.5795  QWK: 0.6801 | LR: 0.000042
+  Epoch 17/25 | Train Loss: 0.3728  Acc: 0.7607 | Val Loss: 1.1765  Acc: 0.5909  QWK: 0.6661 | LR: 0.000035
+  Epoch 18/25 | Train Loss: 0.3847  Acc: 0.7464 | Val Loss: 1.1378  Acc: 0.5909  QWK: 0.6776 | LR: 0.000027
+  Epoch 19/25 | Train Loss: 0.3737  Acc: 0.7179 | Val Loss: 1.1586  Acc: 0.5795  QWK: 0.6665 | LR: 0.000021
+  Epoch 20/25 | Train Loss: 0.3445  Acc: 0.7692 | Val Loss: 1.1342  Acc: 0.5909  QWK: 0.6718 | LR: 0.000015
+
+  ⏹️  Early stopping triggered (no improvement for 7 epochs)
+
+  ⏱️  Total training time: 30.4 minutes
+
+======================================================================
+  FINAL EVALUATION
+======================================================================
+
+  Best Model Results:
+    Val Accuracy:  0.6136 (61.4%)
+    Val QWK:       0.7155
+    Val Loss:      1.1832
+
+  Classification Report:
+                      precision    recall  f1-score   support
+
+           0 - No DR       0.86      0.98      0.91        43
+            1 - Mild       0.50      0.50      0.50        10
+        2 - Moderate       0.00      0.00      0.00        25
+          3 - Severe       0.25      0.25      0.25         4
+4 - Proliferative DR       0.24      1.00      0.39         6
+
+            accuracy                           0.61        88
+           macro avg       0.37      0.55      0.41        88
+        weighted avg       0.50      0.61      0.54        88
+
+
+  📄 Model config saved → /Users/vyomvarshney2005/Desktop/iris full/SIH_2026_PROJECT_IRIS_REPO/model_output_part5/model_config.json
