@@ -107,6 +107,11 @@ async def predict_retinal_image(
     try:
         classifier = get_classifier()
         prediction = classifier.predict(pil_image)
+    except ValueError as val_err:
+        if "not the image of retina" in str(val_err):
+            logger.warning("Non-retinal image rejected: %s", val_err)
+            raise HTTPException(status_code=400, detail="not the image of retina")
+        raise HTTPException(status_code=400, detail=str(val_err))
     except Exception as err:
         logger.exception("Inference execution failure: %s", err)
         raise HTTPException(status_code=500, detail=f"Model inference failed: {str(err)}")

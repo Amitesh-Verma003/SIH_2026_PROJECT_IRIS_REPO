@@ -396,8 +396,12 @@ class DRClassifierService:
         """
         rgb_image = image.convert("RGB")
         
-        # 1. Automated IQA & Adaptive CLAHE Preprocessing
+        # 1. Automated IQA & Retinal Validation
         preprocessor = get_preprocessor()
+        is_retina, retina_msg = preprocessor.is_retinal_fundus(rgb_image)
+        if not is_retina:
+            raise ValueError("not the image of retina")
+
         enhanced_image, iqa = preprocessor.process(rgb_image)
 
         # 2. Retinal Landmark & Lesion Structure Segmentation

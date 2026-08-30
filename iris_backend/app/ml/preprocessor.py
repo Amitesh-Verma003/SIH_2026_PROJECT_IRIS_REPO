@@ -38,11 +38,101 @@ class RetinalPreprocessor:
         self.illum_threshold = illum_threshold
         self.fov_threshold = fov_threshold
 
+    def is_retinal_fundus(self, image: Image.Image) -> Tuple[bool, str]:
+        """
+        Validates whether the provided image is an authentic retinal fundus photograph.
+        Checks:
+          1. Resolution & dimensional validity
+          2. Retinal chromatic signature: Red channel dominance over Blue/Green
+          3. HSV Retinal Hue distribution (orange-red-yellow ocular spectrum)
+          4. Geometric illumination & dark corner/circular aperture morphology
+        Returns (is_valid: bool, reason: str)
+        """
+        rgb = np.array(image.convert("RGB"))
+        h, w = rgb.shape[:2]
+        if h < 48 or w < 48:
+            return False, "not the image of retina"
+
+        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+
+        # 1. Corner black boundary check (Fundamental optical property of fundus photography)
+        corner_size = max(4, int(min(h, w) * 0.08))
+        c_tl = gray[0:corner_size, 0:corner_size]
+        c_tr = gray[0:corner_size, w - corner_size:w]
+        c_bl = gray[h - corner_size:h, 0:corner_size]
+        c_br = gray[h - corner_size:h, w - corner_size:w]
+
+        dark_corners = [
+            float(np.mean(c_tl)) < 45.0,
+            float(np.mean(c_tr)) < 45.0,
+            float(np.mean(c_bl)) < 45.0,
+            float(np.mean(c_br)) < 45.0,
+        ]
+        dark_corner_count = sum(dark_corners)
+
+        # 2. Check foreground & luminance
+        lum = 0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.114 * rgb[:, :, 2]
+        fg_mask = lum > 12
+        fg_ratio = float(np.sum(fg_mask)) / float(h * w)
+        if fg_ratio < 0.10:
+            return False, "not the image of retina"
+
+        r_fg = rgb[:, :, 0][fg_mask]
+        g_fg = rgb[:, :, 1][fg_mask]
+        b_fg = rgb[:, :, 2][fg_mask]
+
+        mean_r = float(np.mean(r_fg))
+        mean_g = float(np.mean(g_fg))
+        mean_b = float(np.mean(b_fg))
+
+        # 3. Retinal chromatic signature: Red channel must dominate Blue
+        rb_ratio = mean_r / (mean_b + 1e-5)
+        if mean_r < 30.0 or rb_ratio < 1.25:
+            return False, "not the image of retina"
+
+        if mean_r < mean_g * 0.85:
+            return False, "not the image of retina"
+
+        # 4. HSV Hue distribution: Retinal tissue is strictly within red/orange/amber spectrum
+        hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+        h_fg = hsv[:, :, 0][fg_mask]
+        s_fg = hsv[:, :, 1][fg_mask]
+
+        # Retinal hues in OpenCV: 0-35 (red-orange-amber) and 155-180 (crimson-red)
+        retina_hue_mask = ((h_fg <= 35) | (h_fg >= 155)) & (s_fg >= 20)
+        retina_hue_ratio = float(np.sum(retina_hue_mask)) / float(len(h_fg))
+
+        if retina_hue_ratio < 0.35:
+            return False, "not the image of retina"
+
+        # 5. Non-fundus rejection for general warm photos with bright corners
+        if dark_corner_count < 2:
+            green = rgb[:, :, 1]
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
+            blackhat = cv2.morphologyEx(green, cv2.MORPH_BLACKHAT, kernel)
+            vessel_variance = float(np.var(blackhat[fg_mask]))
+            mean_corner_lum = float(np.mean([np.mean(c_tl), np.mean(c_tr), np.mean(c_bl), np.mean(c_br)]))
+            if mean_corner_lum > 60.0 and vessel_variance < 10.0:
+                return False, "not the image of retina"
+
+        return True, "valid"
+
     def evaluate_iqa(self, image: Image.Image) -> Dict[str, Any]:
         """
         Evaluate focus, illumination, and field-of-view circularity.
         Returns comprehensive quality metric struct and gradeability flag.
         """
+        is_retina, retina_msg = self.is_retinal_fundus(image)
+        if not is_retina:
+            return {
+                "focus_score": 0.0,
+                "illumination_score": 0.0,
+                "fov_score": 0.0,
+                "overall_status": "UNGRADABLE",
+                "gradeable_flag": False,
+                "feedback": "not the image of retina",
+            }
+
         rgb = np.array(image.convert("RGB"))
         h, w = rgb.shape[:2]
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)

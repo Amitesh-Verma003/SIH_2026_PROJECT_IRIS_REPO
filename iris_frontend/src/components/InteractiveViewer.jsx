@@ -115,6 +115,19 @@ export default function InteractiveViewer({
     if (onSelectPreset) onSelectPreset(FUNDUS_PRESETS[index]);
   };
 
+  const lastInferredImageRef = useRef(null);
+
+  // Auto-run model inference on custom image when uploaded / loaded
+  useEffect(() => {
+    if (customImage && lastInferredImageRef.current !== customImage) {
+      lastInferredImageRef.current = customImage;
+      fetch(customImage)
+        .then((res) => res.blob())
+        .then((blob) => runModelInference(blob, 'Uploaded Retinal Scan'))
+        .catch((e) => console.warn('Could not auto-infer customImage:', e));
+    }
+  }, [customImage]);
+
   // Core function to execute live PyTorch model inference
   const runModelInference = async (fileOrBlob, label = 'Retinal Fundus Image') => {
     setIsInferencing(true);
@@ -131,7 +144,17 @@ export default function InteractiveViewer({
 
       console.log('[IRIS AI] Live model prediction received:', data);
 
-      setLiveInferenceResult({
+      const diagnosedPreset = {
+        ...rawPreset,
+        id: 'uploaded-scan',
+        title: `Uploaded Scan: ${label || 'Patient Fundus'}`,
+        shortLabel: data.grade_label,
+        badgeColor: data.icdr_level === 0 ? 'emerald' : data.icdr_level === 1 ? 'sky' : data.icdr_level === 2 ? 'amber' : data.icdr_level === 3 ? 'orange' : 'rose',
+        patientName: currentUser?.patientName || rawPreset.patientName,
+        patientId: currentUser?.patientId || rawPreset.patientId,
+        age: activeData.age || 58,
+        gender: activeData.gender || 'Male',
+        eyeSide: activeData.eyeSide || 'OD (Right Eye)',
         icdrGrade: data.icdr_level,
         gradeLabel: data.grade_label,
         severityCategory: data.severity_category,
@@ -164,15 +187,25 @@ export default function InteractiveViewer({
         modelVersion: data.model_version,
         modelArchitecture: data.model_architecture,
         backendSessionId: data.session_id,
-      });
+        isLiveModelInference: true,
+      };
+
+      setLiveInferenceResult(diagnosedPreset);
       setInferenceSource(label);
+      if (onSelectPreset) {
+        onSelectPreset(diagnosedPreset);
+      }
     } catch (err) {
-      console.warn('[IRIS AI] Live inference fallback:', err.message);
-      setInferenceError(
-        err.message?.includes('Failed to fetch')
-          ? 'Backend offline: Start iris_backend (uvicorn app.main:app --reload) for live PyTorch inference.'
-          : `Model inference error: ${err.message}`
-      );
+      console.warn('[IRIS AI] Live inference error:', err.message, err.detail);
+      setLiveInferenceResult(null);
+      const detailMsg = (err.detail || err.message || '').toLowerCase();
+      if (detailMsg.includes('not the image of retina') || detailMsg.includes('not a retinal')) {
+        setInferenceError('not the image of retina');
+      } else if (err.message?.includes('Failed to fetch')) {
+        setInferenceError('Backend offline: Start iris_backend (uvicorn app.main:app --reload) for live PyTorch inference.');
+      } else {
+        setInferenceError(`Model inference error: ${err.detail || err.message}`);
+      }
     } finally {
       setIsInferencing(false);
     }
@@ -647,11 +680,23 @@ export default function InteractiveViewer({
 
                 {/* Inference Error Notification */}
                 {inferenceError && (
-                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div className="leading-tight">
-                      <span className="font-bold">Notice: </span>
-                      {inferenceError}
+                  <div className={`p-3.5 rounded-2xl border text-xs flex items-start gap-2.5 shadow-sm ${
+                    inferenceError === 'not the image of retina'
+                      ? 'bg-rose-50 border-rose-300 text-rose-900 ring-2 ring-rose-400/20'
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                  }`}>
+                    <AlertOctagon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                      inferenceError === 'not the image of retina' ? 'text-rose-600 animate-pulse' : 'text-amber-600'
+                    }`} />
+                    <div className="leading-snug space-y-0.5">
+                      <div className="font-extrabold text-sm tracking-tight text-rose-900">
+                        {inferenceError === 'not the image of retina' ? 'not the image of retina' : 'Notice'}
+                      </div>
+                      <div className="text-[11px] text-rose-700 font-medium">
+                        {inferenceError === 'not the image of retina'
+                          ? 'The uploaded file does not match retinal fundus camera criteria. Please upload a clear eye fundus photograph.'
+                          : inferenceError}
+                      </div>
                     </div>
                   </div>
                 )}

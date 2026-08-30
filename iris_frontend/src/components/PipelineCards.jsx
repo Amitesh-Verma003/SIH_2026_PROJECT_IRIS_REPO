@@ -80,10 +80,10 @@ export default function PipelineCards({
     hemorrhages: true,
   });
 
-  // Active preset from Studio (default to Preset 2 Moderate NPDR)
+  // Active preset from Studio or Diagnostic Analysis
   const activeStudioPreset = selectedPreset || FUNDUS_PRESETS[2];
 
-  // Card 3 state: Active Severity Step
+  // Card 3 state: Active Severity Step (synchronizes with diagnostic analysis)
   const [selectedGrade, setSelectedGrade] = useState(() => (
     activeStudioPreset?.icdrGrade !== undefined && activeStudioPreset.icdrGrade >= 0 
       ? activeStudioPreset.icdrGrade 
@@ -100,10 +100,10 @@ export default function PipelineCards({
   const [gradCamOpacity, setGradCamOpacity] = useState(0.7);
   const [explainViewMode, setExplainViewMode] = useState('blend'); // 'blend' | 'split' | 'raw' | 'gradcam'
 
-  // Active preset for cards
-  const activePreset = customImage && selectedGrade === activeStudioPreset.icdrGrade
+  // Active preset for cards: uses diagnostic result when viewing diagnosed grade
+  const activePreset = (selectedGrade === activeStudioPreset.icdrGrade)
     ? activeStudioPreset
-    : (FUNDUS_PRESETS[selectedGrade === 4 ? 3 : selectedGrade === -1 ? 4 : selectedGrade] || FUNDUS_PRESETS[2]);
+    : (FUNDUS_PRESETS.find(p => p.icdrGrade === selectedGrade) || FUNDUS_PRESETS[selectedGrade === 4 ? 3 : selectedGrade] || FUNDUS_PRESETS[2]);
 
   const toggleOverlay = (key) => {
     setOverlays(prev => ({ ...prev, [key]: !prev[key] }));
@@ -426,14 +426,14 @@ export default function PipelineCards({
                 </p>
               </div>
 
-              {/* Uploaded Scan Live Diagnosis Callout */}
-              {customImage && (
+              {/* Uploaded / Diagnosed Scan Live Diagnosis Callout */}
+              {(customImage || activeStudioPreset?.isLiveModelInference) && (
                 <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 flex flex-wrap items-center justify-between gap-3 shadow-xs">
                   <div className="flex items-center gap-3">
                     <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 animate-pulse" />
                     <div>
                       <span className="text-xs font-extrabold uppercase text-blue-900 tracking-wider">
-                        Live Studio AI Inference for Uploaded Scan:
+                        Live Studio AI Inference for Scan:
                       </span>
                       <div className="text-sm font-bold text-slate-900">
                         {activeStudioPreset.gradeLabel} • <span className="text-blue-700 font-mono font-extrabold">{activeStudioPreset.confidence}% Confidence</span>
@@ -456,7 +456,7 @@ export default function PipelineCards({
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-wider">
                   <span>Select Grade Stage to Preview:</span>
-                  {customImage && selectedGrade !== activeStudioPreset.icdrGrade && (
+                  {selectedGrade !== activeStudioPreset.icdrGrade && (
                     <button
                       onClick={() => setSelectedGrade(activeStudioPreset.icdrGrade)}
                       className="text-blue-600 hover:text-blue-700 font-bold underline cursor-pointer text-xs"
@@ -469,7 +469,7 @@ export default function PipelineCards({
                 <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                   {drStages.map((stg) => {
                     const isSelected = selectedGrade === stg.grade;
-                    const isStudioDiagnosed = customImage && activeStudioPreset.icdrGrade === stg.grade;
+                    const isStudioDiagnosed = activeStudioPreset.icdrGrade === stg.grade;
                     return (
                       <button
                         key={stg.grade}

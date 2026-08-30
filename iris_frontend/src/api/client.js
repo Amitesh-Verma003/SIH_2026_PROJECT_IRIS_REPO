@@ -23,7 +23,10 @@ async function request(path, options = {}) {
       const body = await res.json();
       detail = body.detail || JSON.stringify(body);
     } catch { /* ignore parse errors */ }
-    throw new Error(`API ${res.status}: ${detail}`);
+    const error = new Error(detail || `API ${res.status}: ${detail}`);
+    error.status = res.status;
+    error.detail = detail;
+    throw error;
   }
 
   // 204 No Content (e.g. DELETE)
