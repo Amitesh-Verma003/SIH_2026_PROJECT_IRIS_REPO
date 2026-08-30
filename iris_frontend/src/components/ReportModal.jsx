@@ -143,6 +143,7 @@ export default function ReportModal({ isOpen, onClose, reportData }) {
                   gradCamOpacity={0}
                   viewMode="blend"
                   interactiveHover={false}
+                  customImage={reportData.customImage}
                 />
               </div>
               <div className="text-[11px] text-slate-500 text-center">
@@ -163,6 +164,7 @@ export default function ReportModal({ isOpen, onClose, reportData }) {
                   gradCamOpacity={0.75}
                   viewMode="blend"
                   interactiveHover={false}
+                  customImage={reportData.customImage}
                 />
               </div>
               <div className="text-[11px] text-slate-500 text-center font-mono">

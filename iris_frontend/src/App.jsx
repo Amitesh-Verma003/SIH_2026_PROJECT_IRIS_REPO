@@ -8,6 +8,7 @@ import ReportModal from './components/ReportModal';
 import IntroOverlay from './components/IntroOverlay';
 import LoginPage from './components/LoginPage';
 import PatientRegistry from './components/PatientRegistry';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
 import FullCircleRetinaEye from './components/FullCircleRetinaEye';
 import Footer from './components/Footer';
 import { FUNDUS_PRESETS } from './assets/fundus-data';
@@ -16,10 +17,30 @@ export default function App() {
   const [showIntro, setShowIntro] = useState(true); // Shown BEFORE login only
   const [currentUser, setCurrentUser] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [currentPage, setCurrentPage] = useState('home'); // 'home' | 'studio' | 'about' | 'patients'
+  const [currentPage, setCurrentPage] = useState('home'); // 'home' | 'studio' | 'about' | 'patients' | 'analytics'
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [activeReportData, setActiveReportData] = useState(null);
   const [selectedPreset, setSelectedPreset] = useState(FUNDUS_PRESETS[2]);
+  const [customImage, setCustomImage] = useState(() => {
+    try {
+      return sessionStorage.getItem('iris_ai_custom_image') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const handleCustomImageChange = (url) => {
+    setCustomImage(url);
+    try {
+      if (url) {
+        sessionStorage.setItem('iris_ai_custom_image', url);
+      } else {
+        sessionStorage.removeItem('iris_ai_custom_image');
+      }
+    } catch (e) {
+      console.warn('Session storage write failed', e);
+    }
+  };
 
   // Backend entity IDs persisted after login
   const [backendPatientId, setBackendPatientId] = useState(null);
@@ -39,24 +60,25 @@ export default function App() {
       console.error('Failed to parse user session', e);
     }
 
-    if (window.location.hash === '#studio') {
-      setCurrentPage('studio');
-    } else if (window.location.hash === '#about') {
-      setCurrentPage('about');
-    } else if (window.location.hash === '#patients' || window.location.hash === '#registry') {
-      setCurrentPage('patients');
-    }
-
-    const handleHashChange = () => {
-      if (window.location.hash === '#studio') {
+    const syncPageFromHash = () => {
+      const hash = (window.location.hash || '').toLowerCase().replace('#', '');
+      if (hash.includes('studio')) {
         setCurrentPage('studio');
-      } else if (window.location.hash === '#about') {
+      } else if (hash.includes('about')) {
         setCurrentPage('about');
-      } else if (window.location.hash === '#patients' || window.location.hash === '#registry') {
+      } else if (hash.includes('patient') || hash.includes('registry')) {
         setCurrentPage('patients');
-      } else {
+      } else if (hash.includes('analytic')) {
+        setCurrentPage('analytics');
+      } else if (hash === '' || hash === 'home' || hash === 'overview') {
         setCurrentPage('home');
       }
+    };
+
+    syncPageFromHash();
+
+    const handleHashChange = () => {
+      syncPageFromHash();
     };
 
     window.addEventListener('hashchange', handleHashChange);
@@ -79,6 +101,12 @@ export default function App() {
   const navigateToPatients = () => {
     setCurrentPage('patients');
     window.location.hash = 'patients';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToAnalytics = () => {
+    setCurrentPage('analytics');
+    window.location.hash = 'analytics';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -142,6 +170,7 @@ export default function App() {
   const handleOpenReportModal = (reportPayload) => {
     setActiveReportData({
       ...reportPayload,
+      customImage: reportPayload.customImage || customImage,
       doctorName: currentUser?.name || reportPayload.doctorName || 'Dr. Ananya Sharma, MD',
       doctorLocation: currentUser ? `${currentUser.district}, ${currentUser.state}` : reportPayload.doctorLocation || 'Varanasi, Uttar Pradesh',
       patientName: reportPayload.patientName || currentUser?.patientName || 'Harish Chandra Verma',
@@ -189,6 +218,9 @@ export default function App() {
           backendPatientId={backendPatientId}
           backendFacilityId={backendFacilityId}
           onNavigatePatients={navigateToPatients}
+          onNavigateAnalytics={navigateToAnalytics}
+          customImage={customImage}
+          onCustomImageChange={handleCustomImageChange}
         />
       ) : currentPage === 'about' ? (
         /* VIEW B: DEDICATED ABOUT US & TEAM SHADOW FIGHTERS STORY PAGE */
@@ -202,12 +234,23 @@ export default function App() {
           currentUser={currentUser}
           onBackToHome={navigateToHome}
           onNavigateStudio={navigateToStudio}
+          onNavigateAnalytics={navigateToAnalytics}
           onSelectPatientForStudio={handleSelectPatientForStudio}
           onViewPatientReport={handleOpenReportModal}
           onLogout={handleLogout}
         />
+      ) : currentPage === 'analytics' ? (
+        /* VIEW D: DEDICATED CLINICAL ANALYTICS & TRIAGE DASHBOARD PAGE */
+        <AnalyticsDashboard
+          currentUser={currentUser}
+          onBackToHome={navigateToHome}
+          onNavigateStudio={navigateToStudio}
+          onNavigatePatients={navigateToPatients}
+          onViewReport={handleOpenReportModal}
+          customImage={customImage}
+        />
       ) : (
-        /* VIEW D: HOMEPAGE OVERVIEW & CLINICAL PIPELINE MODULES (Shown by default after login) */
+        /* VIEW E: HOMEPAGE OVERVIEW & CLINICAL PIPELINE MODULES (Shown by default after login) */
         <>
           {/* Top Full-Width Clean Clinical Navigation Bar */}
           <div className="relative z-40">
@@ -219,6 +262,8 @@ export default function App() {
               onNavigateStudio={handleLaunchLiveDemo}
               onNavigateAbout={navigateToAbout}
               onNavigatePatients={navigateToPatients}
+              onNavigateAnalytics={navigateToAnalytics}
+              onNavigateHome={navigateToHome}
             />
           </div>
 
@@ -245,6 +290,7 @@ export default function App() {
             <Footer 
               onNavigateAbout={navigateToAbout} 
               onNavigatePatients={navigateToPatients}
+              onNavigateAnalytics={navigateToAnalytics}
             />
           </div>
         </>

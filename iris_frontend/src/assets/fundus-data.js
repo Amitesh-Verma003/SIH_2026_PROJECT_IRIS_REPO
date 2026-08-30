@@ -17,6 +17,13 @@ export const FUNDUS_PRESETS = [
     gradeLabel: 'Level 0: No Diabetic Retinopathy',
     severityCategory: 'Normal (No DR)',
     confidence: 99.1,
+    softmaxDistribution: [
+      { grade: 0, label: 'Grade 0: Healthy', prob: 99.1, color: '#10B981' },
+      { grade: 1, label: 'Grade 1: Mild', prob: 0.6, color: '#0EA5E9' },
+      { grade: 2, label: 'Grade 2: Moderate', prob: 0.2, color: '#F59E0B' },
+      { grade: 3, label: 'Grade 3: Severe', prob: 0.1, color: '#F97316' },
+      { grade: 4, label: 'Grade 4: PDR', prob: 0.0, color: '#EF4444' }
+    ],
     referable: false,
     referralText: 'Routine Annual Follow-up (Normal)',
     urgencyLevel: 'LOW',
@@ -70,6 +77,13 @@ export const FUNDUS_PRESETS = [
     gradeLabel: 'Level 1: Mild NPDR',
     severityCategory: 'Mild Non-Proliferative DR',
     confidence: 94.6,
+    softmaxDistribution: [
+      { grade: 0, label: 'Grade 0: Healthy', prob: 3.2, color: '#10B981' },
+      { grade: 1, label: 'Grade 1: Mild', prob: 94.6, color: '#0EA5E9' },
+      { grade: 2, label: 'Grade 2: Moderate', prob: 1.8, color: '#F59E0B' },
+      { grade: 3, label: 'Grade 3: Severe', prob: 0.3, color: '#F97316' },
+      { grade: 4, label: 'Grade 4: PDR', prob: 0.1, color: '#EF4444' }
+    ],
     referable: false,
     referralText: 'Routine 6-12 Month Follow-Up / Glycemic Advisory',
     urgencyLevel: 'LOW-MODERATE',
@@ -131,6 +145,13 @@ export const FUNDUS_PRESETS = [
     gradeLabel: 'Level 2: Moderate NPDR',
     severityCategory: 'Moderate Non-Proliferative DR',
     confidence: 96.8,
+    softmaxDistribution: [
+      { grade: 0, label: 'Grade 0: Healthy', prob: 0.4, color: '#10B981' },
+      { grade: 1, label: 'Grade 1: Mild', prob: 2.1, color: '#0EA5E9' },
+      { grade: 2, label: 'Grade 2: Moderate', prob: 96.8, color: '#F59E0B' },
+      { grade: 3, label: 'Grade 3: Severe', prob: 0.5, color: '#F97316' },
+      { grade: 4, label: 'Grade 4: PDR', prob: 0.2, color: '#EF4444' }
+    ],
     referable: true,
     referralText: 'Refer to Ophthalmologist (Within 4 Weeks)',
     urgencyLevel: 'MODERATE-HIGH',
@@ -197,6 +218,13 @@ export const FUNDUS_PRESETS = [
     gradeLabel: 'Level 4: Proliferative DR (PDR)',
     severityCategory: 'Severe / Proliferative DR',
     confidence: 98.9,
+    softmaxDistribution: [
+      { grade: 0, label: 'Grade 0: Healthy', prob: 0.0, color: '#10B981' },
+      { grade: 1, label: 'Grade 1: Mild', prob: 0.1, color: '#0EA5E9' },
+      { grade: 2, label: 'Grade 2: Moderate', prob: 0.3, color: '#F59E0B' },
+      { grade: 3, label: 'Grade 3: Severe', prob: 0.7, color: '#F97316' },
+      { grade: 4, label: 'Grade 4: PDR', prob: 98.9, color: '#EF4444' }
+    ],
     referable: true,
     referralText: 'REFER TO SPECIALIST (URGENT <72h)',
     urgencyLevel: 'CRITICAL / IMMEDIATE',
@@ -261,6 +289,13 @@ export const FUNDUS_PRESETS = [
     gradeLabel: 'Ungradeable Image Quality',
     severityCategory: 'Quality Gate Rejection',
     confidence: 34.2,
+    softmaxDistribution: [
+      { grade: 0, label: 'Grade 0: Healthy', prob: 12.1, color: '#10B981' },
+      { grade: 1, label: 'Grade 1: Mild', prob: 15.4, color: '#0EA5E9' },
+      { grade: 2, label: 'Grade 2: Moderate', prob: 18.2, color: '#F59E0B' },
+      { grade: 3, label: 'Grade 3: Severe', prob: 20.1, color: '#F97316' },
+      { grade: 4, label: 'Grade 4: PDR', prob: 34.2, color: '#EF4444' }
+    ],
     referable: true,
     referralText: 'IMMEDIATE RE-CAPTURE REQUIRED (IQA FAIL)',
     urgencyLevel: 'RE-SCREEN REQUIRED',

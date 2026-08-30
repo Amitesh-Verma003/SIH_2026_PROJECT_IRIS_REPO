@@ -32,17 +32,17 @@ const INDIAN_STATES_DISTRICTS = {
 
 export default function LoginPage({ onLoginSuccess }) {
   const [formData, setFormData] = useState({
-    doctorName: 'Dr. Ananya Sharma',
-    mobile: '9876543210',
-    state: 'Uttar Pradesh',
-    district: 'Varanasi',
-    patientName: 'Harish Chandra Verma',
+    doctorName: '',
+    mobile: '',
+    state: '',
+    district: '',
+    patientName: '',
     patientId: 'vyom1234',
   });
 
-  const [districtsList, setDistrictsList] = useState(INDIAN_STATES_DISTRICTS['Uttar Pradesh']);
+  const [districtsList, setDistrictsList] = useState([]);
   const [step, setStep] = useState(1); // 1 = Details form, 2 = OTP verification
-  const [otp, setOtp] = useState(['0', '0', '0', '0']);
+  const [otp, setOtp] = useState(['', '', '', '']);
   const [otpError, setOtpError] = useState('');
   const [countdown, setCountdown] = useState(30);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,12 +52,13 @@ export default function LoginPage({ onLoginSuccess }) {
   // Handle State selection change and update District list
   const handleStateChange = (e) => {
     const selectedState = e.target.value;
+    const districts = INDIAN_STATES_DISTRICTS[selectedState] || [];
     setFormData(prev => ({
       ...prev,
       state: selectedState,
-      district: INDIAN_STATES_DISTRICTS[selectedState]?.[0] || '',
+      district: districts[0] || '',
     }));
-    setDistrictsList(INDIAN_STATES_DISTRICTS[selectedState] || []);
+    setDistrictsList(districts);
   };
 
   // Timer countdown for resending OTP
@@ -79,12 +80,20 @@ export default function LoginPage({ onLoginSuccess }) {
       alert('Please enter a valid 10-digit mobile number');
       return;
     }
+    if (!formData.state) {
+      alert('Please select a state');
+      return;
+    }
+    if (!formData.district) {
+      alert('Please select a district');
+      return;
+    }
     if (!formData.patientName.trim()) {
       alert('Please enter patient name');
       return;
     }
     if (!formData.patientId.trim()) {
-      alert('Please enter patient ID');
+      alert('Please enter ABHA ID / Patient ID');
       return;
     }
 
@@ -242,12 +251,12 @@ export default function LoginPage({ onLoginSuccess }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
                   <div className="space-y-1.5">
                     <label className="text-xs sm:text-sm font-bold text-slate-700">
-                      Doctor Name
+                      Doctor / Clinician Name
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder="Dr. Ananya Sharma"
+                      placeholder="e.g. Dr. Ananya Sharma"
                       value={formData.doctorName}
                       onChange={(e) => setFormData({ ...formData, doctorName: e.target.value })}
                       className="w-full px-4 py-3 text-sm sm:text-base font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-xs"
@@ -266,7 +275,7 @@ export default function LoginPage({ onLoginSuccess }) {
                         type="tel"
                         required
                         maxLength={10}
-                        placeholder="9876543210"
+                        placeholder="Enter 10-digit number"
                         value={formData.mobile}
                         onChange={(e) => setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '') })}
                         className="w-full pl-14 pr-4 py-3 text-sm sm:text-base font-mono font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-xs"
@@ -284,8 +293,10 @@ export default function LoginPage({ onLoginSuccess }) {
                     <select
                       value={formData.state}
                       onChange={handleStateChange}
+                      required
                       className="w-full px-4 py-3 text-sm sm:text-base font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs"
                     >
+                      <option value="" disabled>Select State</option>
                       {Object.keys(INDIAN_STATES_DISTRICTS).map(st => (
                         <option key={st} value={st}>{st}</option>
                       ))}
@@ -295,13 +306,16 @@ export default function LoginPage({ onLoginSuccess }) {
                   <div className="space-y-1.5">
                     <label className="text-xs sm:text-sm font-bold text-slate-700 flex items-center gap-1.5">
                       <Building2 className="w-4 h-4 text-blue-600" />
-                      <span>District / PHC Unit</span>
+                      <span>District / Primary Health Centre (PHC)</span>
                     </label>
                     <select
                       value={formData.district}
                       onChange={(e) => setFormData({ ...formData, district: e.target.value })}
-                      className="w-full px-4 py-3 text-sm sm:text-base font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs"
+                      required
+                      disabled={!formData.state}
+                      className="w-full px-4 py-3 text-sm sm:text-base font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
                     >
+                      <option value="" disabled>{formData.state ? 'Select District / PHC Unit' : 'Select State First'}</option>
                       {districtsList.map(dt => (
                         <option key={dt} value={dt}>{dt}</option>
                       ))}
@@ -330,7 +344,7 @@ export default function LoginPage({ onLoginSuccess }) {
                     <input
                       type="text"
                       required
-                      placeholder="Harish Chandra Verma"
+                      placeholder="e.g. Harish Chandra Verma"
                       value={formData.patientName}
                       onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
                       className="w-full px-4 py-3 text-sm sm:text-base font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-xs"
@@ -340,7 +354,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-xs sm:text-sm font-bold text-slate-700">
-                        Patient ID
+                        ABHA ID / Patient ID
                       </label>
                       <button
                         type="button"

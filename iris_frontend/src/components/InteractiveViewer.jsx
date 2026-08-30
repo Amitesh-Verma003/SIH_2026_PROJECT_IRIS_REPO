@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   UploadCloud, 
   Sparkles, 
@@ -26,13 +26,23 @@ import { createScreeningSession, addFundusImage } from '../api/screenings';
 import { createGrading } from '../api/gradings';
 import { createReferral } from '../api/referrals';
 
-export default function InteractiveViewer({ onOpenReportModal, currentPreset, onSelectPreset, currentUser, backendPatientId, backendFacilityId }) {
+export default function InteractiveViewer({ 
+  onOpenReportModal, 
+  currentPreset, 
+  onSelectPreset, 
+  currentUser, 
+  backendPatientId, 
+  backendFacilityId,
+  customImage,
+  onCustomImageChange
+}) {
   const [selectedPresetIndex, setSelectedPresetIndex] = useState(2); // Level 2 default
   const [gradCamOpacity, setGradCamOpacity] = useState(0.65);
   const [viewMode, setViewMode] = useState('blend'); // 'blend' | 'split' | 'raw' | 'gradcam'
   const [splitSliderPos, setSplitSliderPos] = useState(50);
   const [enhancementMode, setEnhancementMode] = useState('clahe');
-  const [customImage, setCustomImage] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
   const [isApproved, setIsApproved] = useState(false);
   const [doctorNotes, setDoctorNotes] = useState('Reviewed AI Grad-CAM localization. Hard exudate clusters verified in temporal parafoveal zone. Triage approved for specialist tele-consultation.');
   const [overrideGrade, setOverrideGrade] = useState(null);
@@ -48,11 +58,38 @@ export default function InteractiveViewer({ onOpenReportModal, currentPreset, on
     patientId: currentUser?.patientId || rawPreset.patientId,
   };
 
+  useEffect(() => {
+    if (currentPreset) {
+      const idx = FUNDUS_PRESETS.findIndex(p => p.id === currentPreset.id);
+      if (idx !== -1) {
+        setSelectedPresetIndex(idx);
+      }
+    }
+  }, [currentPreset]);
+
+  // Trigger 2-second high-tech AI scan sweep
+  const triggerScanAnimation = () => {
+    setIsScanning(true);
+    setScanProgress(0);
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(100, Math.round((elapsed / 2000) * 100));
+      setScanProgress(pct);
+      if (elapsed >= 2000) {
+        clearInterval(interval);
+        setIsScanning(false);
+        setScanProgress(100);
+      }
+    }, 40);
+  };
+
   const handlePresetSelect = (index) => {
     setSelectedPresetIndex(index);
-    setCustomImage(null);
+    // Keep customImage so selecting different captures does not clear the uploaded scan
     setIsApproved(false);
     setOverrideGrade(null);
+    triggerScanAnimation();
     if (onSelectPreset) onSelectPreset(FUNDUS_PRESETS[index]);
   };
 
@@ -60,9 +97,13 @@ export default function InteractiveViewer({ onOpenReportModal, currentPreset, on
     const file = e.target.files?.[0];
     if (file) {
       const url = URL.createObjectURL(file);
-      setCustomImage(url);
+      if (onCustomImageChange) {
+        onCustomImageChange(url);
+      }
       setIsApproved(false);
+      triggerScanAnimation();
     }
+    if (e.target) e.target.value = '';
   };
 
   const handleApproveAndExport = async () => {
@@ -164,69 +205,34 @@ export default function InteractiveViewer({ onOpenReportModal, currentPreset, on
           </p>
         </div>
 
-        {/* Preset Selector Buttons & File Dropzone */}
-        <div className="mb-8 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-              Select Clinical Case Preset or Upload Custom Scan:
-            </span>
-            <span className="text-xs font-mono text-slate-500">
-              DICOM (.dcm), PNG, JPG supported
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-            {FUNDUS_PRESETS.map((preset, idx) => {
-              const isSelected = selectedPresetIndex === idx && !customImage;
-              return (
-                <button
-                  key={preset.id}
-                  onClick={() => handlePresetSelect(idx)}
-                  className={`p-3 rounded-2xl text-left border-2 transition-all cursor-pointer ${
-                    isSelected
-                      ? 'border-blue-600 bg-white shadow-md ring-2 ring-blue-500/20'
-                      : 'border-slate-200 bg-white/80 hover:bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-mono font-bold text-slate-400">
-                      Case #{idx + 1}
-                    </span>
-                    <span className={`w-2 h-2 rounded-full ${
-                      preset.icdrGrade === 0 ? 'bg-emerald-500' :
-                      preset.icdrGrade === 1 ? 'bg-sky-500' :
-                      preset.icdrGrade === 2 ? 'bg-amber-500' :
-                      preset.icdrGrade === 4 ? 'bg-rose-500' : 'bg-slate-400'
-                    }`} />
-                  </div>
-                  <div className="text-xs font-bold text-slate-900 truncate">
-                    {preset.shortLabel}
-                  </div>
-                  <div className="text-[10px] text-slate-500 truncate mt-0.5">
-                    {preset.phcLocation.split(' ')[0]}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Quick File Upload Banner */}
-          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
-                <UploadCloud className="w-5 h-5" />
+        {/* Retinal Fundus Acquisition & Ingestion Console */}
+        <div className="mb-8 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            
+            {/* Left: Active Fundus Telemetry & Sensor Info */}
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0 shadow-xs">
+                <UploadCloud className="w-6 h-6" />
               </div>
-              <div className="text-left text-xs">
-                <div className="font-bold text-slate-800">
-                  {customImage ? 'Custom Scan Loaded' : 'Upload External Retinal Fundus Scan'}
+              <div className="text-left">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-sm text-slate-900">
+                    {customImage ? 'External Retinal Fundus Scan Loaded' : 'Patient Fundus Image Ingestion Console'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-mono text-[10px] font-bold border border-emerald-200">
+                    LIVE ACQUISITION
+                  </span>
                 </div>
-                <div className="text-slate-500">
-                  {customImage ? 'Image processed via edge inference model' : 'Drag & drop image file or select from computer'}
+                <div className="text-xs text-slate-500 mt-0.5">
+                  {customImage 
+                    ? 'Uploaded fundus scan synchronized with edge deep-learning inference model' 
+                    : `Active Subject: ${activeData.patientName} (${activeData.patientId}) • Non-Mydriatic Fundus Camera (45° FOV)`}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Right: Ingestion Actions (Browse Upload, Sample Selector, Re-Scan) */}
+            <div className="flex flex-wrap items-center gap-2.5">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -234,21 +240,55 @@ export default function InteractiveViewer({ onOpenReportModal, currentPreset, on
                 onChange={handleFileUpload}
                 className="hidden"
               />
+
+              {/* Upload Button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer border border-slate-300/80"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all cursor-pointer"
               >
-                Browse File
+                <UploadCloud className="w-4 h-4" />
+                <span>Upload Retinal Scan</span>
               </button>
+
+              {/* Re-Scan Trigger */}
+              <button
+                onClick={triggerScanAnimation}
+                disabled={isScanning}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold text-xs border border-slate-200 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                title="Run AI 2.0s Deep-Scan Inferencing"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                <span>{isScanning ? 'Inferencing...' : 'Re-Scan (2.0s)'}</span>
+              </button>
+
+              {/* Sample Selector without revealing diagnosis upfront */}
+              <div className="relative inline-flex items-center">
+                <select
+                  value={selectedPresetIndex}
+                  onChange={(e) => handlePresetSelect(parseInt(e.target.value))}
+                  className="pl-3 pr-8 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold font-mono border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer appearance-none"
+                >
+                  <option value={0}>Sample Retinal Scan #1 (OD)</option>
+                  <option value={1}>Sample Retinal Scan #2 (OS)</option>
+                  <option value={2}>Sample Retinal Scan #3 (OD)</option>
+                  <option value={3}>Sample Retinal Scan #4 (OS)</option>
+                  <option value={4}>Sample Retinal Scan #5 (OD)</option>
+                </select>
+                <span className="pointer-events-none absolute right-3 text-slate-400 text-xs">▼</span>
+              </div>
+
               {customImage && (
                 <button
-                  onClick={() => setCustomImage(null)}
-                  className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 transition-colors cursor-pointer"
+                  onClick={() => {
+                    if (onCustomImageChange) onCustomImageChange(null);
+                  }}
+                  className="px-3.5 py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition-all cursor-pointer"
                 >
                   Clear Custom
                 </button>
               )}
             </div>
+
           </div>
         </div>
 
@@ -320,8 +360,46 @@ export default function InteractiveViewer({ onOpenReportModal, currentPreset, on
                 splitSliderPos={splitSliderPos}
                 viewMode={viewMode}
                 customImage={customImage}
-                interactiveHover={true}
+                interactiveHover={!isScanning}
+                showScanline={isScanning}
               />
+
+              {/* High-Tech 2-Second Scanning Laser & Telemetry HUD Overlay */}
+              {isScanning && (
+                <div className="absolute inset-0 z-30 flex flex-col items-center justify-between p-6 bg-slate-950/75 backdrop-blur-[2px] rounded-3xl animate-in fade-in duration-200 pointer-events-none select-none">
+                  {/* Top Badge */}
+                  <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/95 border border-cyan-400 text-cyan-300 font-mono text-xs font-bold shadow-lg shadow-cyan-500/30">
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                    <span>AI Deep-Scan Inferencing (2.0s)</span>
+                  </div>
+
+                  {/* Center Scanning Ring */}
+                  <div className="relative flex items-center justify-center">
+                    <div className="w-32 h-32 rounded-full border-2 border-dashed border-cyan-400/60 animate-spin" style={{ animationDuration: '3s' }} />
+                    <div className="absolute w-20 h-20 rounded-full border-2 border-blue-400/80 animate-ping" />
+                    <div className="absolute font-mono text-xl font-black text-cyan-300">
+                      {scanProgress}%
+                    </div>
+                  </div>
+
+                  {/* Bottom Progress Telemetry */}
+                  <div className="w-full max-w-[300px] space-y-1.5 text-center relative z-10 bg-slate-900/90 p-3 rounded-2xl border border-cyan-500/40 shadow-xl">
+                    <div className="flex justify-between text-xs font-mono text-cyan-200">
+                      <span className="font-bold">Edge Triage Processing</span>
+                      <span className="font-black text-cyan-400">{scanProgress}%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-800 border border-cyan-500/50 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-cyan-400 via-blue-500 to-emerald-400 transition-all duration-75 shadow-[0_0_10px_#38bdf8]"
+                        style={{ width: `${scanProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] font-mono text-cyan-300/90">
+                      {scanProgress < 40 ? 'Extracting vascular morphometry...' : scanProgress < 80 ? 'Calculating Grad-CAM heatmap...' : 'Computing maximum softmax confidence...'}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Status Watermark */}
               <div className="absolute top-4 left-4 bg-slate-900/85 backdrop-blur-md px-3 py-1 rounded-xl text-[11px] font-mono text-cyan-300 border border-cyan-500/30 flex items-center gap-2">
@@ -425,26 +503,91 @@ export default function InteractiveViewer({ onOpenReportModal, currentPreset, on
                 </span>
               </div>
 
-              {/* Grade Banner */}
-              <div className={`p-4 rounded-2xl border ${
-                activeData.icdrGrade === 0 ? 'bg-emerald-50/80 border-emerald-200' :
-                activeData.icdrGrade === 1 ? 'bg-sky-50/80 border-sky-200' :
-                activeData.icdrGrade === 2 ? 'bg-amber-50/80 border-amber-200' :
-                activeData.icdrGrade === 4 ? 'bg-rose-50/80 border-rose-200' : 'bg-slate-100 border-slate-200'
-              }`}>
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  ICDR Severity Classification
-                </div>
-                <div className="text-xl font-extrabold text-slate-900 mt-0.5">
-                  {overrideGrade !== null ? `Grade ${overrideGrade} (Doctor Override)` : activeData.gradeLabel}
-                </div>
-                <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t border-slate-200/60">
-                  <span className="text-slate-600 font-medium">Softmax Confidence:</span>
-                  <span className="font-mono font-bold text-slate-900 text-sm">
-                    {activeData.confidence}%
-                  </span>
-                </div>
-              </div>
+              {/* Maximum Softmax Confidence Display */}
+              {(() => {
+                const softmaxList = activeData.softmaxDistribution || [
+                  { grade: 0, label: 'Grade 0: Healthy', prob: activeData.icdrGrade === 0 ? activeData.confidence : 0.5, color: '#10B981' },
+                  { grade: 1, label: 'Grade 1: Mild', prob: activeData.icdrGrade === 1 ? activeData.confidence : 1.2, color: '#0EA5E9' },
+                  { grade: 2, label: 'Grade 2: Moderate', prob: activeData.icdrGrade === 2 ? activeData.confidence : 1.5, color: '#F59E0B' },
+                  { grade: 3, label: 'Grade 3: Severe', prob: activeData.icdrGrade === 3 ? activeData.confidence : 0.8, color: '#F97316' },
+                  { grade: 4, label: 'Grade 4: PDR', prob: activeData.icdrGrade === 4 ? activeData.confidence : 0.2, color: '#EF4444' },
+                ];
+                const maxSoftmaxGrade = softmaxList.reduce((max, item) => item.prob > max.prob ? item : max, softmaxList[0]);
+
+                return (
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/90 via-indigo-50/50 to-slate-50 border-2 border-blue-200 shadow-sm space-y-3.5">
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold font-mono uppercase tracking-wider text-blue-900">
+                        <Sparkles className="w-4 h-4 text-blue-600 animate-pulse" />
+                        <span>Maximum Softmax Confidence</span>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white font-mono font-extrabold text-[11px] shadow-xs">
+                        Peak Class
+                      </span>
+                    </div>
+
+                    <div className="flex items-end justify-between border-b border-blue-100/80 pb-3">
+                      <div>
+                        <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                          {overrideGrade !== null ? `Grade ${overrideGrade} (Doctor Override)` : activeData.gradeLabel}
+                        </div>
+                        <div className="text-xs text-slate-500 font-medium mt-0.5">
+                          {activeData.severityCategory}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-3xl font-black font-mono text-blue-700">
+                          {maxSoftmaxGrade.prob}%
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono uppercase">Max Probability</div>
+                      </div>
+                    </div>
+
+                    {/* 5-Class Softmax Probability Distribution Bars */}
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex justify-between">
+                        <span>5-Class Softmax Probability Spread</span>
+                        <span className="font-mono text-blue-700 font-bold">100% Normalized</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {softmaxList.map((item) => {
+                          const isTop = item.grade === maxSoftmaxGrade.grade;
+                          return (
+                            <div key={item.grade} className="space-y-0.5">
+                              <div className="flex items-center justify-between text-xs font-medium">
+                                <span className={`flex items-center gap-1.5 ${isTop ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
+                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                                  {item.label}
+                                  {isTop && (
+                                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 font-mono font-bold">
+                                      MAX CONFIDENCE
+                                    </span>
+                                  )}
+                                </span>
+                                <span className={`font-mono ${isTop ? 'font-extrabold text-blue-700 text-sm' : 'text-slate-500'}`}>
+                                  {item.prob.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full h-1.5 bg-slate-200/70 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all duration-500"
+                                  style={{
+                                    width: `${Math.max(item.prob, 1)}%`,
+                                    backgroundColor: item.color,
+                                    boxShadow: isTop ? `0 0 8px ${item.color}` : 'none'
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                  </div>
+                );
+              })()}
 
               {/* Lesion Morphometry Breakdown Table */}
               <div className="space-y-2">

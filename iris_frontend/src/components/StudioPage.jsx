@@ -8,7 +8,8 @@ import {
   ShieldCheck,
   Activity,
   Home,
-  Users
+  Users,
+  BarChart3
 } from 'lucide-react';
 import InteractiveViewer from './InteractiveViewer';
 
@@ -22,6 +23,9 @@ export default function StudioPage({
   backendPatientId,
   backendFacilityId,
   onNavigatePatients,
+  onNavigateAnalytics,
+  customImage,
+  onCustomImageChange,
 }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col selection:bg-blue-100 selection:text-blue-900 relative">
@@ -82,6 +86,17 @@ export default function StudioPage({
                 </div>
               )}
 
+              {onNavigateAnalytics && (
+                <button
+                  onClick={onNavigateAnalytics}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300 transition-all cursor-pointer shadow-xs"
+                  title="View Analytics & Triage Dashboard"
+                >
+                  <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="hidden sm:inline">Analytics</span>
+                </button>
+              )}
+
               {onNavigatePatients && (
                 <button
                   onClick={onNavigatePatients}
@@ -118,6 +133,8 @@ export default function StudioPage({
           currentUser={currentUser}
           backendPatientId={backendPatientId}
           backendFacilityId={backendFacilityId}
+          customImage={customImage}
+          onCustomImageChange={onCustomImageChange}
         />
       </main>
 

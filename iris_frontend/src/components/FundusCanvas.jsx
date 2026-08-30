@@ -39,12 +39,29 @@ export default function FundusCanvas({
     // If custom image is provided, draw it
     if (customImage) {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
+      if (!customImage.startsWith('blob:') && !customImage.startsWith('data:')) {
+        try {
+          img.crossOrigin = 'anonymous';
+        } catch (e) {
+          // ignore
+        }
+      }
+      const drawLoadedImage = () => {
+        ctx.clearRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
         applyOverlaysAndHeatmap(ctx, width, height);
       };
+
+      img.onload = drawLoadedImage;
+      img.onerror = () => {
+        renderBaseFundus(ctx, width, height, presetData, enhancementMode);
+        applyOverlaysAndHeatmap(ctx, width, height);
+      };
+
       img.src = customImage;
+      if (img.complete && img.naturalWidth !== 0) {
+        drawLoadedImage();
+      }
       return;
     }
 

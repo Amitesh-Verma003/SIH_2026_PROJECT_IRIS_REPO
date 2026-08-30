@@ -23,7 +23,8 @@ import {
   User,
   LogOut,
   Database,
-  RefreshCw
+  RefreshCw,
+  BarChart3
 } from 'lucide-react';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
 import { listPatients } from '../api/patients';
@@ -32,6 +33,8 @@ export default function PatientRegistry({
   currentUser, 
   onBackToHome, 
   onNavigateStudio, 
+  onNavigatePatients,
+  onNavigateAnalytics,
   onSelectPatientForStudio, 
   onViewPatientReport,
   onLogout
@@ -411,6 +414,17 @@ export default function PatientRegistry({
                 <MapPin className="w-3.5 h-3.5 text-blue-600" />
                 <span>{doctorDistrict}, {doctorState}</span>
               </div>
+
+              {onNavigateAnalytics && (
+                <button
+                  onClick={onNavigateAnalytics}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300 transition-all cursor-pointer shadow-xs"
+                  title="View Clinical Analytics Dashboard"
+                >
+                  <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="hidden sm:inline">Analytics</span>
+                </button>
+              )}
 
               {currentUser && onLogout && (
                 <button

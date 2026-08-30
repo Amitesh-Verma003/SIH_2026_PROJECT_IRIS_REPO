@@ -1,7 +1,7 @@
-﻿import React from 'react';
-import { Eye, ShieldCheck, Heart, ExternalLink, Users } from 'lucide-react';
+import React from 'react';
+import { Eye, ShieldCheck, Heart, ExternalLink, Users, BarChart3 } from 'lucide-react';
 
-export default function Footer({ onNavigateAbout, onNavigatePatients }) {
+export default function Footer({ onNavigateAbout, onNavigatePatients, onNavigateAnalytics }) {
   const handleAboutClick = (e) => {
     e.preventDefault();
     if (onNavigateAbout) {
@@ -17,6 +17,15 @@ export default function Footer({ onNavigateAbout, onNavigatePatients }) {
       onNavigatePatients();
     } else {
       window.location.hash = 'patients';
+    }
+  };
+
+  const handleAnalyticsClick = (e) => {
+    e.preventDefault();
+    if (onNavigateAnalytics) {
+      onNavigateAnalytics();
+    } else {
+      window.location.hash = 'analytics';
     }
   };
 
@@ -48,7 +57,16 @@ export default function Footer({ onNavigateAbout, onNavigatePatients }) {
                 className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-900/40 hover:bg-blue-800/60 text-blue-300 hover:text-white border border-blue-700/50 transition-all font-semibold"
               >
                 <Users className="w-3.5 h-3.5 text-blue-400" />
-                <span>Meet Team SHADOW FIGHTERS ΓåÆ</span>
+                <span>Meet Team SHADOW FIGHTERS →</span>
+              </a>
+
+              <a
+                href="#analytics"
+                onClick={handleAnalyticsClick}
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 hover:text-white border border-emerald-700/50 transition-all font-semibold"
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Clinical Analytics →</span>
               </a>
 
               <a
@@ -56,7 +74,7 @@ export default function Footer({ onNavigateAbout, onNavigatePatients }) {
                 onClick={handlePatientsClick}
                 className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60 transition-all font-semibold"
               >
-                <span>Patient EHR Registry ΓåÆ</span>
+                <span>Patient EHR Registry →</span>
               </a>
             </div>
           </div>
@@ -71,8 +89,9 @@ export default function Footer({ onNavigateAbout, onNavigatePatients }) {
               <li><a href="#pipeline-biomarkers" className="hover:text-white transition-colors">02. Biomarker Segmentation</a></li>
               <li><a href="#pipeline-grading" className="hover:text-white transition-colors">03. Calibrated ICDR Grading</a></li>
               <li><a href="#pipeline-explainability" className="hover:text-white transition-colors">04. Layer-4 Grad-CAM Hub</a></li>
-              <li><a href="#patients" onClick={handlePatientsClick} className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">05. PHC Patient Registry</a></li>
-              <li><a href="#about" onClick={handleAboutClick} className="text-cyan-400 hover:text-cyan-300 font-semibold transition-colors">06. About Team SHADOW FIGHTERS</a></li>
+              <li><a href="#analytics" onClick={handleAnalyticsClick} className="text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">05. Analytics &amp; Triage Dashboard</a></li>
+              <li><a href="#patients" onClick={handlePatientsClick} className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">06. PHC Patient Registry</a></li>
+              <li><a href="#about" onClick={handleAboutClick} className="text-cyan-400 hover:text-cyan-300 font-semibold transition-colors">07. About Team SHADOW FIGHTERS</a></li>
             </ul>
           </div>
 
