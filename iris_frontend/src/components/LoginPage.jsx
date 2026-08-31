@@ -8,14 +8,56 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Sparkles, 
-  IdCard 
+  IdCard,
+  Navigation,
+  Loader2,
+  LocateFixed
 } from 'lucide-react';
 import { createPatient } from '../api/patients';
 import { listFacilities } from '../api/facilities';
 
 const INDIAN_STATES_DISTRICTS = {
-  'Uttar Pradesh': ['Varanasi', 'Gorakhpur', 'Lucknow', 'Prayagraj', 'Kanpur', 'Sitapur', 'Jhansi', 'Agra', 'Bareilly', 'Mirzapur', 'Bundelkhand'],
-  'Maharashtra': ['Gadchiroli', 'Pune', 'Mumbai', 'Nagpur', 'Nashik', 'Aurangabad', 'Solapur', 'Amravati', 'Kolhapur', 'Thane'],
+  'Uttar Pradesh': [
+    'Ghaziabad',
+    'Varanasi',
+    'Lucknow',
+    'Gautam Buddha Nagar (Noida)',
+    'Kanpur Nagar',
+    'Prayagraj (Allahabad)',
+    'Gorakhpur',
+    'Agra',
+    'Meerut',
+    'Bareilly',
+    'Aligarh',
+    'Moradabad',
+    'Saharanpur',
+    'Jhansi',
+    'Ayodhya',
+    'Mathura',
+    'Muzaffarnagar',
+    'Sitapur',
+    'Mirzapur',
+    'Firozabad',
+    'Banda (Bundelkhand)',
+    'Sonbhadra',
+    'Shahjahanpur',
+    'Rampur',
+    'Unnao',
+    'Barabanki',
+    'Hardoi',
+    'Lakhimpur Kheri',
+    'Basti',
+    'Deoria',
+    'Azamgarh',
+    'Jaunpur',
+    'Ghazipur',
+    'Ballia',
+    'Etawah',
+    'Bulandshahr',
+    'Hapur',
+    'Baghpat'
+  ],
+  'Maharashtra': ['Gadchiroli', 'Pune', 'Mumbai', 'Nagpur', 'Nashik', 'Chhatrapati Sambhajinagar (Aurangabad)', 'Solapur', 'Amravati', 'Kolhapur', 'Thane'],
   'Karnataka': ['Belagavi', 'Bengaluru Urban', 'Mysuru', 'Hubballi-Dharwad', 'Kalaburagi', 'Mangaluru', 'Ballari', 'Davangere'],
   'Bihar': ['Patna', 'Muzaffarpur', 'Gaya', 'Bhagalpur', 'Darbhanga', 'Purnia', 'Begusarai', 'Saharsa'],
   'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Tirunelveli', 'Thanjavur', 'Vellore'],
@@ -23,7 +65,7 @@ const INDIAN_STATES_DISTRICTS = {
   'Madhya Pradesh': ['Bhopal', 'Indore', 'Jabalpur', 'Gwalior', 'Ujjain', 'Sagar', 'Rewa', 'Satna'],
   'Gujarat': ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Bhavnagar', 'Jamnagar', 'Gandhinagar'],
   'West Bengal': ['Kolkata', 'Howrah', 'Siliguri', 'Durgapur', 'Asansol', 'Bardhaman', 'Malda'],
-  'Delhi NCR': ['New Delhi', 'North Delhi', 'South Delhi', 'East Delhi', 'West Delhi', 'Central Delhi'],
+  'Delhi NCR': ['New Delhi', 'North Delhi', 'South Delhi', 'East Delhi', 'West Delhi', 'Central Delhi', 'South West Delhi'],
   'Telangana': ['Hyderabad', 'Warangal', 'Nizamabad', 'Karimnagar', 'Khammam'],
   'Andhra Pradesh': ['Visakhapatnam', 'Vijayawada', 'Guntur', 'Nellore', 'Kurnool', 'Tirupati'],
   'Kerala': ['Thiruvananthapuram', 'Kochi', 'Kozhikode', 'Thrissur', 'Kollam'],
@@ -47,6 +89,10 @@ export default function LoginPage({ onLoginSuccess }) {
   const [countdown, setCountdown] = useState(30);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Auto-Location State
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationStatus, setLocationStatus] = useState(null); // { type: 'success' | 'error', text: '' }
+
   const otpInputsRef = useRef([]);
 
   // Handle State selection change and update District list
@@ -59,6 +105,145 @@ export default function LoginPage({ onLoginSuccess }) {
       district: districts[0] || '',
     }));
     setDistrictsList(districts);
+    setLocationStatus(null);
+  };
+
+  // Auto-detect location via browser Geolocation API and reverse geocode
+  const handleAutoDetectLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus({
+        type: 'error',
+        text: 'Geolocation is not supported by your browser.'
+      });
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationStatus({
+      type: 'info',
+      text: 'Acquiring high-accuracy GPS coordinates...'
+    });
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        console.log(`[IRIS AI] Geolocation acquired: ${latitude}, ${longitude} (±${Math.round(accuracy)}m)`);
+
+        let detectedState = 'Uttar Pradesh';
+        let detectedDistrict = 'Ghaziabad';
+        let locationFound = false;
+
+        try {
+          // Attempt reverse geocoding via OpenStreetMap Nominatim with 3s timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`,
+            { signal: controller.signal, headers: { 'User-Agent': 'IRIS-AI-Screening-Studio/1.0' } }
+          );
+          clearTimeout(timeoutId);
+
+          if (res.ok) {
+            const geoData = await res.json();
+            const addr = geoData.address || {};
+            const stateStr = addr.state || '';
+            const districtStr = addr.state_district || addr.county || addr.city || addr.town || addr.suburb || '';
+
+            console.log('[IRIS AI] Reverse geocode result:', addr);
+
+            // Match state
+            const matchedState = Object.keys(INDIAN_STATES_DISTRICTS).find(
+              st => stateStr.toLowerCase().includes(st.toLowerCase()) || st.toLowerCase().includes(stateStr.toLowerCase())
+            );
+
+            if (matchedState) {
+              detectedState = matchedState;
+              const dists = INDIAN_STATES_DISTRICTS[matchedState] || [];
+              const matchedDist = dists.find(
+                d => districtStr.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(districtStr.toLowerCase())
+              );
+              if (matchedDist) {
+                detectedDistrict = matchedDist;
+                locationFound = true;
+              } else if (dists.length > 0) {
+                detectedDistrict = dists[0];
+                locationFound = true;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[IRIS AI] Online reverse geocoding fallback to distance heuristic:', e);
+        }
+
+        // Offline coordinate-based nearest Indian district matching
+        if (!locationFound) {
+          const knownCoords = [
+            { state: 'Uttar Pradesh', district: 'Ghaziabad', lat: 28.6692, lon: 77.4538 },
+            { state: 'Uttar Pradesh', district: 'Gautam Buddha Nagar (Noida)', lat: 28.5355, lon: 77.3910 },
+            { state: 'Delhi NCR', district: 'New Delhi', lat: 28.6139, lon: 77.2090 },
+            { state: 'Uttar Pradesh', district: 'Meerut', lat: 28.9845, lon: 77.7064 },
+            { state: 'Uttar Pradesh', district: 'Lucknow', lat: 26.8467, lon: 80.9462 },
+            { state: 'Uttar Pradesh', district: 'Kanpur Nagar', lat: 26.4499, lon: 80.3319 },
+            { state: 'Uttar Pradesh', district: 'Varanasi', lat: 25.3176, lon: 82.9739 },
+            { state: 'Uttar Pradesh', district: 'Prayagraj (Allahabad)', lat: 25.4358, lon: 81.8463 },
+            { state: 'Uttar Pradesh', district: 'Agra', lat: 27.1767, lon: 78.0081 },
+            { state: 'Uttar Pradesh', district: 'Gorakhpur', lat: 26.7606, lon: 83.3732 },
+            { state: 'Maharashtra', district: 'Mumbai', lat: 19.0760, lon: 72.8777 },
+            { state: 'Maharashtra', district: 'Pune', lat: 18.5204, lon: 73.8567 },
+            { state: 'Karnataka', district: 'Bengaluru Urban', lat: 12.9716, lon: 77.5946 },
+            { state: 'West Bengal', district: 'Kolkata', lat: 22.5726, lon: 88.3639 },
+            { state: 'Bihar', district: 'Patna', lat: 25.5941, lon: 85.1376 },
+            { state: 'Rajasthan', district: 'Jaipur', lat: 26.9124, lon: 75.7873 },
+          ];
+
+          // Compute Euclidean/Haversine minimum
+          let minDistance = Infinity;
+          let best = knownCoords[0];
+          for (const point of knownCoords) {
+            const d = Math.hypot(latitude - point.lat, longitude - point.lon);
+            if (d < minDistance) {
+              minDistance = d;
+              best = point;
+            }
+          }
+          detectedState = best.state;
+          detectedDistrict = best.district;
+        }
+
+        const districts = INDIAN_STATES_DISTRICTS[detectedState] || [];
+        setDistrictsList(districts);
+        setFormData(prev => ({
+          ...prev,
+          state: detectedState,
+          district: detectedDistrict,
+        }));
+
+        setIsLocating(false);
+        setLocationStatus({
+          type: 'success',
+          text: `Auto-Detected: ${detectedDistrict}, ${detectedState} (GPS ±${Math.round(accuracy)}m)`
+        });
+      },
+      (err) => {
+        console.warn('[IRIS AI] Geolocation permission or sensor error:', err);
+        setIsLocating(false);
+        // If permission denied or error, default helpfully to Ghaziabad, UP
+        const defaultState = 'Uttar Pradesh';
+        const defaultDist = 'Ghaziabad';
+        setDistrictsList(INDIAN_STATES_DISTRICTS[defaultState]);
+        setFormData(prev => ({
+          ...prev,
+          state: defaultState,
+          district: defaultDist
+        }));
+        setLocationStatus({
+          type: 'info',
+          text: `GPS Access Restricted (${err.code === 1 ? 'Permission Denied' : 'Signal Unavailable'}). Set to Default: Ghaziabad, UP.`
+        });
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
   };
 
   // Timer countdown for resending OTP
@@ -283,6 +468,47 @@ export default function LoginPage({ onLoginSuccess }) {
                     </div>
                   </div>
                 </div>
+
+                {/* Location Header with Auto-Detect Button */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <div className="text-xs font-semibold text-slate-500">
+                    Field Location &amp; Primary Health Centre Unit
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={handleAutoDetectLocation}
+                    disabled={isLocating}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 active:bg-blue-200 text-blue-700 font-bold text-xs border border-blue-200 shadow-xs transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed group"
+                  >
+                    {isLocating ? (
+                      <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                    ) : (
+                      <LocateFixed className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
+                    )}
+                    <span>{isLocating ? 'Detecting Location...' : 'Auto-Fetch Location (GPS)'}</span>
+                  </button>
+                </div>
+
+                {/* Location Detection Feedback Toast/Pill */}
+                {locationStatus && (
+                  <div className={`p-2.5 rounded-xl text-xs flex items-center gap-2 border font-medium animate-in fade-in duration-200 ${
+                    locationStatus.type === 'success' 
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                      : locationStatus.type === 'error'
+                      ? 'bg-rose-50 border-rose-200 text-rose-800'
+                      : 'bg-blue-50 border-blue-200 text-blue-800'
+                  }`}>
+                    {locationStatus.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    ) : locationStatus.type === 'error' ? (
+                      <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                    ) : (
+                      <Navigation className="w-4 h-4 text-blue-600 flex-shrink-0 animate-pulse" />
+                    )}
+                    <span>{locationStatus.text}</span>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
                   <div className="space-y-1.5">

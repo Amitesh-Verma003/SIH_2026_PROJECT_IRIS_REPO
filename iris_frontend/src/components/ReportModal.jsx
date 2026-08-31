@@ -14,6 +14,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import FundusCanvas from './FundusCanvas';
+import { getNearestHealthcareCenters } from '../assets/referralData';
 
 export default function ReportModal({ isOpen, onClose, reportData }) {
   if (!isOpen || !reportData) return null;
@@ -221,6 +222,82 @@ export default function ReportModal({ isOpen, onClose, reportData }) {
               {reportData.doctorNotes || reportData.doctorRecommendation}
             </p>
           </div>
+
+          {/* Institutional Referrals & Localized Healthcare Centers (Ophthalmologist & AYUSH AHWC) */}
+          {(() => {
+            const centers = reportData.nearestCenters || getNearestHealthcareCenters(reportData.userDistrict || 'Ghaziabad', reportData.userState || 'Uttar Pradesh');
+            return (
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-blue-600" />
+                    <span>Designated Clinical Referral &amp; AYUSH Health Centres</span>
+                  </div>
+                  {reportData.referralToken && (
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
+                      TOKEN: {reportData.referralToken}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  {/* Closest Ophthalmologist */}
+                  <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-blue-700 font-mono text-[10px] uppercase bg-blue-50 px-1.5 py-0.5 rounded">
+                        Tertiary Retinal Referral
+                      </span>
+                      <span className="font-mono font-bold text-slate-700 text-[11px]">
+                        {centers.ophthalmologist.distance} ({centers.ophthalmologist.eta})
+                      </span>
+                    </div>
+                    <div className="font-extrabold text-slate-900 text-sm">
+                      {centers.ophthalmologist.name}
+                    </div>
+                    <div className="text-slate-700 font-medium">
+                      {centers.ophthalmologist.doctor}
+                    </div>
+                    <div className="text-[11px] text-slate-500 flex items-start gap-1">
+                      <MapPin className="w-3 h-3 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <span>{centers.ophthalmologist.address}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-600 font-mono pt-1">
+                      Emergency / Tele-Consult: <strong className="text-blue-700">{centers.ophthalmologist.phone}</strong>
+                    </div>
+                  </div>
+
+                  {/* Nearest AYUSH Health & Wellness Centre */}
+                  <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-emerald-800 font-mono text-[10px] uppercase bg-emerald-50 px-1.5 py-0.5 rounded">
+                        Ayushman Arogya Mandir (AYUSH)
+                      </span>
+                      <span className="font-mono font-bold text-slate-700 text-[11px]">
+                        {centers.ayushCenter.distance} ({centers.ayushCenter.eta})
+                      </span>
+                    </div>
+                    <div className="font-extrabold text-slate-900 text-sm">
+                      {centers.ayushCenter.name}
+                    </div>
+                    <div className="text-slate-700 font-medium">
+                      {centers.ayushCenter.doctor}
+                    </div>
+                    <div className="text-[11px] text-slate-500 flex items-start gap-1">
+                      <MapPin className="w-3 h-3 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <span>{centers.ayushCenter.address}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-600 font-mono pt-1">
+                      Integrative Care Contact: <strong className="text-emerald-700">{centers.ayushCenter.phone}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-slate-500 italic pt-1 text-center">
+                  Notice: Patient referred under National Programme for Control of Blindness &amp; Visual Impairment (NPCBVI) and National AYUSH Mission.
+                </div>
+              </div>
+            );
+          })()}
 
         </div>
 

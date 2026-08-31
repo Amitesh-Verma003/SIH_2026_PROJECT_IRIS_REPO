@@ -21,11 +21,21 @@ import {
   Cpu,
   Zap,
   AlertCircle,
-  Loader2
+  Loader2,
+  Building2,
+  PhoneCall,
+  Navigation,
+  HeartPulse,
+  Clock,
+  Send,
+  ExternalLink,
+  Stethoscope,
+  BadgeCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import FundusCanvas from './FundusCanvas';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
+import { getNearestHealthcareCenters } from '../assets/referralData';
 import { createScreeningSession, addFundusImage } from '../api/screenings';
 import { createGrading, predictDrGrading, getModelInfo } from '../api/gradings';
 import { createReferral } from '../api/referrals';
@@ -53,6 +63,10 @@ export default function InteractiveViewer({
   const [backendSessionId, setBackendSessionId] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Localized Referral Centers State
+  const [referralToken, setReferralToken] = useState(null);
+  const [ayushAssigned, setAyushAssigned] = useState(false);
+
   // Live PyTorch Model Inference State
   const [liveInferenceResult, setLiveInferenceResult] = useState(null);
   const [isInferencing, setIsInferencing] = useState(false);
@@ -70,6 +84,11 @@ export default function InteractiveViewer({
     ...(liveInferenceResult || {}),
     isLiveModelInference: Boolean(liveInferenceResult),
   };
+
+  // Localized Referral Centers Resolution based on District & State
+  const userDistrict = currentUser?.district || (activeData.phcLocation?.includes('Varanasi') ? 'Varanasi' : 'Ghaziabad');
+  const userState = currentUser?.state || 'Uttar Pradesh';
+  const nearestCenters = getNearestHealthcareCenters(userDistrict, userState);
 
   // Fetch trained model metadata on component mount
   useEffect(() => {
@@ -314,6 +333,10 @@ export default function InteractiveViewer({
       setIsSaving(false);
     }
 
+    // Generate automatic referral token if referable
+    const token = referralToken || `#REF-${userDistrict.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    if (!referralToken) setReferralToken(token);
+
     // Open clinical report modal (always works, even offline)
     onOpenReportModal({
       ...activeData,
@@ -322,6 +345,11 @@ export default function InteractiveViewer({
       approvedAt: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
       customImage,
       backendSessionId: createdSessionId,
+      nearestCenters,
+      referralToken: token,
+      userDistrict,
+      userState,
+      ayushAssigned,
     });
   };
 
@@ -445,159 +473,347 @@ export default function InteractiveViewer({
         {/* Core Sandbox Studio Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* Left / Center Canvas Workspace (7 Cols) */}
-          <div className="lg:col-span-7 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+          {/* Left / Center Canvas Workspace & Localized Care Network (7 Cols) */}
+          <div className="lg:col-span-7 space-y-5">
             
-            {/* Top Canvas Controls Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            {/* 1. Fundus Image & Grad-CAM Canvas Card */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
               
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  View Mode:
-                </span>
-                <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+              {/* Top Canvas Controls Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    View Mode:
+                  </span>
+                  <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                    <button
+                      onClick={() => setViewMode('blend')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        viewMode === 'blend' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Overlay
+                    </button>
+                    <button
+                      onClick={() => setViewMode('split')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        viewMode === 'split' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Split Slider
+                    </button>
+                    <button
+                      onClick={() => setViewMode('raw')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        viewMode === 'raw' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Raw Only
+                    </button>
+                  </div>
+                </div>
+
+                {/* Enhancement Filter Switcher */}
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-slate-500 font-medium">Filter:</span>
                   <button
-                    onClick={() => setViewMode('blend')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                      viewMode === 'blend' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    onClick={() => setEnhancementMode(enhancementMode === 'clahe' ? 'original' : 'clahe')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border cursor-pointer transition-all ${
+                      enhancementMode === 'clahe'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : 'bg-white text-slate-600 border-slate-200'
                     }`}
                   >
-                    Overlay
+                    {enhancementMode === 'clahe' ? 'CLAHE On' : 'CLAHE Off'}
                   </button>
-                  <button
-                    onClick={() => setViewMode('split')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                      viewMode === 'split' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Split Slider
-                  </button>
-                  <button
-                    onClick={() => setViewMode('raw')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                      viewMode === 'raw' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Raw Only
-                  </button>
+                </div>
+
+              </div>
+
+              {/* Canvas Main Render Area */}
+              <div className="relative w-full aspect-square max-w-[460px] mx-auto rounded-3xl bg-slate-950 p-4 shadow-xl border border-slate-800 flex items-center justify-center overflow-hidden">
+                <FundusCanvas
+                  presetData={activeData}
+                  enhancementMode={enhancementMode}
+                  overlays={{ opticDisc: true, vessels: true, microaneurysms: true, exudates: true, hemorrhages: true }}
+                  gradCamOpacity={gradCamOpacity}
+                  splitSliderPos={splitSliderPos}
+                  viewMode={viewMode}
+                  customImage={customImage}
+                  interactiveHover={!isScanning}
+                  showScanline={isScanning}
+                />
+
+                {/* High-Tech 2-Second Scanning Laser & Telemetry HUD Overlay */}
+                {isScanning && (
+                  <div className="absolute inset-0 z-30 flex flex-col items-center justify-between p-6 bg-slate-950/75 backdrop-blur-[2px] rounded-3xl animate-in fade-in duration-200 pointer-events-none select-none">
+                    {/* Top Badge */}
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/95 border border-cyan-400 text-cyan-300 font-mono text-xs font-bold shadow-lg shadow-cyan-500/30">
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                      <span>AI Deep-Scan Inferencing (2.0s)</span>
+                    </div>
+
+                    {/* Center Scanning Ring */}
+                    <div className="relative flex items-center justify-center">
+                      <div className="w-32 h-32 rounded-full border-2 border-dashed border-cyan-400/60 animate-spin" style={{ animationDuration: '3s' }} />
+                      <div className="absolute w-20 h-20 rounded-full border-2 border-blue-400/80 animate-ping" />
+                      <div className="absolute font-mono text-xl font-black text-cyan-300">
+                        {scanProgress}%
+                      </div>
+                    </div>
+
+                    {/* Bottom Progress Telemetry */}
+                    <div className="w-full max-w-[300px] space-y-1.5 text-center relative z-10 bg-slate-900/90 p-3 rounded-2xl border border-cyan-500/40 shadow-xl">
+                      <div className="flex justify-between text-xs font-mono text-cyan-200">
+                        <span className="font-bold">Edge Triage Processing</span>
+                        <span className="font-black text-cyan-400">{scanProgress}%</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-slate-800 border border-cyan-500/50 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-cyan-400 via-blue-500 to-emerald-400 transition-all duration-75 shadow-[0_0_10px_#38bdf8]"
+                          style={{ width: `${scanProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] font-mono text-cyan-300/90">
+                        {scanProgress < 40 ? 'Extracting vascular morphometry...' : scanProgress < 80 ? 'Calculating Grad-CAM heatmap...' : 'Computing maximum softmax confidence...'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Status Watermark */}
+                <div className="absolute top-4 left-4 bg-slate-900/85 backdrop-blur-md px-3 py-1 rounded-xl text-[11px] font-mono text-cyan-300 border border-cyan-500/30 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  <span>{activeData.patientId}</span>
                 </div>
               </div>
 
-              {/* Enhancement Filter Switcher */}
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-slate-500 font-medium">Filter:</span>
-                <button
-                  onClick={() => setEnhancementMode(enhancementMode === 'clahe' ? 'original' : 'clahe')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border cursor-pointer transition-all ${
-                    enhancementMode === 'clahe'
-                      ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : 'bg-white text-slate-600 border-slate-200'
-                  }`}
-                >
-                  {enhancementMode === 'clahe' ? 'CLAHE On' : 'CLAHE Off'}
-                </button>
+              {/* Bottom Slider Controls */}
+              <div className="space-y-3 pt-2">
+                
+                {viewMode === 'split' ? (
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs text-slate-600">
+                      <span className="font-semibold">Split Comparison Slider (Raw &larr; &rarr; Grad-CAM)</span>
+                      <span className="font-mono font-bold text-blue-600">{splitSliderPos}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="95"
+                      value={splitSliderPos}
+                      onChange={(e) => setSplitSliderPos(parseInt(e.target.value))}
+                      className="w-full h-2 bg-slate-200 rounded-lg cursor-pointer"
+                    />
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs text-slate-600">
+                      <span className="font-semibold">Grad-CAM Heatmap Opacity</span>
+                      <span className="font-mono font-bold text-blue-600">{Math.round(gradCamOpacity * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={gradCamOpacity}
+                      onChange={(e) => setGradCamOpacity(parseFloat(e.target.value))}
+                      className="w-full h-2 bg-slate-200 rounded-lg cursor-pointer"
+                    />
+                  </div>
+                )}
+
+                {/* AI Justification text */}
+                <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-100 text-left text-xs text-slate-700">
+                  <span className="font-bold text-blue-900">Explainability Readout: </span>
+                  <span className="text-slate-600">{activeData.gradCam.aiExplanation}</span>
+                </div>
+
               </div>
 
             </div>
 
-            {/* Canvas Main Render Area */}
-            <div className="relative w-full aspect-square max-w-[460px] mx-auto rounded-3xl bg-slate-950 p-4 shadow-xl border border-slate-800 flex items-center justify-center overflow-hidden">
-              <FundusCanvas
-                presetData={activeData}
-                enhancementMode={enhancementMode}
-                overlays={{ opticDisc: true, vessels: true, microaneurysms: true, exudates: true, hemorrhages: true }}
-                gradCamOpacity={gradCamOpacity}
-                splitSliderPos={splitSliderPos}
-                viewMode={viewMode}
-                customImage={customImage}
-                interactiveHover={!isScanning}
-                showScanline={isScanning}
-              />
-
-              {/* High-Tech 2-Second Scanning Laser & Telemetry HUD Overlay */}
-              {isScanning && (
-                <div className="absolute inset-0 z-30 flex flex-col items-center justify-between p-6 bg-slate-950/75 backdrop-blur-[2px] rounded-3xl animate-in fade-in duration-200 pointer-events-none select-none">
-                  {/* Top Badge */}
-                  <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/95 border border-cyan-400 text-cyan-300 font-mono text-xs font-bold shadow-lg shadow-cyan-500/30">
-                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                    <span>AI Deep-Scan Inferencing (2.0s)</span>
-                  </div>
-
-                  {/* Center Scanning Ring */}
-                  <div className="relative flex items-center justify-center">
-                    <div className="w-32 h-32 rounded-full border-2 border-dashed border-cyan-400/60 animate-spin" style={{ animationDuration: '3s' }} />
-                    <div className="absolute w-20 h-20 rounded-full border-2 border-blue-400/80 animate-ping" />
-                    <div className="absolute font-mono text-xl font-black text-cyan-300">
-                      {scanProgress}%
-                    </div>
-                  </div>
-
-                  {/* Bottom Progress Telemetry */}
-                  <div className="w-full max-w-[300px] space-y-1.5 text-center relative z-10 bg-slate-900/90 p-3 rounded-2xl border border-cyan-500/40 shadow-xl">
-                    <div className="flex justify-between text-xs font-mono text-cyan-200">
-                      <span className="font-bold">Edge Triage Processing</span>
-                      <span className="font-black text-cyan-400">{scanProgress}%</span>
-                    </div>
-                    <div className="w-full h-2 rounded-full bg-slate-800 border border-cyan-500/50 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-cyan-400 via-blue-500 to-emerald-400 transition-all duration-75 shadow-[0_0_10px_#38bdf8]"
-                        style={{ width: `${scanProgress}%` }}
-                      />
-                    </div>
-                    <p className="text-[10px] font-mono text-cyan-300/90">
-                      {scanProgress < 40 ? 'Extracting vascular morphometry...' : scanProgress < 80 ? 'Calculating Grad-CAM heatmap...' : 'Computing maximum softmax confidence...'}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Status Watermark */}
-              <div className="absolute top-4 left-4 bg-slate-900/85 backdrop-blur-md px-3 py-1 rounded-xl text-[11px] font-mono text-cyan-300 border border-cyan-500/30 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                <span>{activeData.patientId}</span>
-              </div>
-            </div>
-
-            {/* Bottom Slider Controls */}
-            <div className="space-y-3 pt-2">
+            {/* 2. DIRECT SPECIALIST REFERRAL & NEAREST AYUSH HEALTH CENTRE (Leftover Space Resolved!) */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-4 text-left animate-in fade-in duration-300">
               
-              {viewMode === 'split' ? (
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs text-slate-600">
-                    <span className="font-semibold">Split Comparison Slider (Raw &larr; &rarr; Grad-CAM)</span>
-                    <span className="font-mono font-bold text-blue-600">{splitSliderPos}%</span>
+              {/* Card Title & Tele-Referral Badges */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-xl bg-blue-50 text-blue-700">
+                      <Stethoscope className="w-4 h-4" />
+                    </div>
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                      Localized Tertiary Referral &amp; AYUSH Health Centres
+                    </h3>
                   </div>
-                  <input
-                    type="range"
-                    min="5"
-                    max="95"
-                    value={splitSliderPos}
-                    onChange={(e) => setSplitSliderPos(parseInt(e.target.value))}
-                    className="w-full h-2 bg-slate-200 rounded-lg cursor-pointer"
-                  />
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Proximity-matched health network for <strong className="text-blue-700">{userDistrict}, {userState}</strong>
+                  </p>
                 </div>
-              ) : (
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs text-slate-600">
-                    <span className="font-semibold">Grad-CAM Heatmap Opacity</span>
-                    <span className="font-mono font-bold text-blue-600">{Math.round(gradCamOpacity * 100)}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={gradCamOpacity}
-                    onChange={(e) => setGradCamOpacity(parseFloat(e.target.value))}
-                    className="w-full h-2 bg-slate-200 rounded-lg cursor-pointer"
-                  />
-                </div>
-              )}
 
-              {/* AI Justification text */}
-              <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-100 text-left text-xs text-slate-700">
-                <span className="font-bold text-blue-900">Explainability Readout: </span>
-                <span className="text-slate-600">{activeData.gradCam.aiExplanation}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
+                    <BadgeCheck className="w-3 h-3 text-emerald-600" />
+                    <span>AB PM-JAY &amp; AYUSH Network</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Grid of 2 Localized Care Providers */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* 1. Closest Ophthalmologist & Vitreoretinal Unit */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/70 via-indigo-50/30 to-slate-50 border border-blue-200/90 shadow-xs flex flex-col justify-between space-y-3 hover:border-blue-300 transition-all">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono uppercase tracking-wider text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-md">
+                        <Eye className="w-3 h-3 text-blue-600" />
+                        <span>Closest Eye Specialist</span>
+                      </span>
+                      <span className="text-[11px] font-mono font-bold text-blue-800 bg-white px-2 py-0.5 rounded-md border border-blue-200 shadow-2xs">
+                        {nearestCenters.ophthalmologist.distance} • {nearestCenters.ophthalmologist.eta}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
+                        {nearestCenters.ophthalmologist.name}
+                      </h4>
+                      <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
+                        {nearestCenters.ophthalmologist.doctor}
+                      </p>
+                      <p className="text-[10px] text-slate-500">{nearestCenters.ophthalmologist.designation}</p>
+                    </div>
+
+                    <div className="text-[11px] text-slate-600 flex items-start gap-1.5 pt-1">
+                      <MapPin className="w-3.5 h-3.5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <span className="leading-tight">{nearestCenters.ophthalmologist.address}</span>
+                    </div>
+
+                    {/* Key Specialized Facilities */}
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {nearestCenters.ophthalmologist.facilities?.slice(0, 3).map((f, i) => (
+                        <span key={i} className="text-[9px] font-mono bg-white/90 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Contact & Fast-Track Referral Action */}
+                  <div className="pt-2 border-t border-blue-100/80 space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 font-mono">Tele-Consult:</span>
+                      <a href={`tel:${nearestCenters.ophthalmologist.phone}`} className="font-mono font-bold text-blue-700 hover:underline flex items-center gap-1">
+                        <PhoneCall className="w-3 h-3" />
+                        <span>{nearestCenters.ophthalmologist.phone.split('/')[0].trim()}</span>
+                      </a>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const token = `#REF-${userDistrict.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+                        setReferralToken(token);
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                        referralToken
+                          ? 'bg-emerald-600 text-white shadow-emerald-600/20'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20'
+                      }`}
+                    >
+                      {referralToken ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Referral Dispatched ({referralToken})</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Initiate Fast-Track Referral</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Nearest Ayush Health & Wellness Centre (AHWC) */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/70 via-teal-50/30 to-slate-50 border border-emerald-200/90 shadow-xs flex flex-col justify-between space-y-3 hover:border-emerald-300 transition-all">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono uppercase tracking-wider text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                        <HeartPulse className="w-3 h-3 text-emerald-700" />
+                        <span>Nearest AYUSH Centre</span>
+                      </span>
+                      <span className="text-[11px] font-mono font-bold text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-200 shadow-2xs">
+                        {nearestCenters.ayushCenter.distance} • {nearestCenters.ayushCenter.eta}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
+                        {nearestCenters.ayushCenter.name}
+                      </h4>
+                      <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
+                        {nearestCenters.ayushCenter.doctor}
+                      </p>
+                      <p className="text-[10px] text-slate-500">{nearestCenters.ayushCenter.designation}</p>
+                    </div>
+
+                    <div className="text-[11px] text-slate-600 flex items-start gap-1.5 pt-1">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <span className="leading-tight">{nearestCenters.ayushCenter.address}</span>
+                    </div>
+
+                    {/* Key AYUSH Integrative Services */}
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {nearestCenters.ayushCenter.services?.slice(0, 2).map((s, i) => (
+                        <span key={i} className="text-[9px] font-mono bg-white/90 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Contact & Assign Care Action */}
+                  <div className="pt-2 border-t border-emerald-100/80 space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 font-mono">OPD Hours:</span>
+                      <span className="font-mono font-semibold text-slate-700 flex items-center gap-1 text-[10px]">
+                        <Clock className="w-3 h-3 text-emerald-600" />
+                        <span>08:00 AM - 04:00 PM</span>
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setAyushAssigned(true)}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                        ayushAssigned
+                          ? 'bg-teal-700 text-white shadow-teal-700/20'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                      }`}
+                    >
+                      {ayushAssigned ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Assigned to AYUSH Care Queue</span>
+                        </>
+                      ) : (
+                        <>
+                          <HeartPulse className="w-3.5 h-3.5" />
+                          <span>Assign Post-Triage Care</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
               </div>
 
             </div>
