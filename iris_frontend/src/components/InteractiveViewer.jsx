@@ -37,6 +37,7 @@ import FundusCanvas from './FundusCanvas';
 import NearestOphthalmologistMap from './NearestOphthalmologistMap';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
 import { getNearestHealthcareCenters } from '../assets/referralData';
+import { checkIsRetinalImage } from '../utils/retinaValidator';
 import { createScreeningSession, addFundusImage } from '../api/screenings';
 import { createGrading, predictDrGrading, getModelInfo } from '../api/gradings';
 import { createReferral } from '../api/referrals';
@@ -245,7 +246,7 @@ export default function InteractiveViewer({
     }
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
       const url = URL.createObjectURL(file);
@@ -254,10 +255,19 @@ export default function InteractiveViewer({
       }
       setIsApproved(false);
       setOverrideGrade(null);
-      if (onSelectPreset) {
-        onSelectPreset(FUNDUS_PRESETS[selectedPresetIndex]);
+
+      // 1. Instant Client-Side IQA Optical & Chromaticity Validation
+      const validation = await checkIsRetinalImage(url);
+      if (!validation.isRetina) {
+        console.warn('[IRIS IQA] Non-retinal image rejected:', validation.reason);
+        setInferenceError('not the image of retina');
+        setLiveInferenceResult(null);
+        if (e.target) e.target.value = '';
+        return;
       }
-      // Execute live model inference on uploaded image
+
+      setInferenceError(null);
+      // 2. Execute live model inference on verified fundus image
       runModelInference(file, file.name);
     }
     if (e.target) e.target.value = '';
@@ -265,6 +275,13 @@ export default function InteractiveViewer({
 
   const handleRunModelOnCurrentScan = async () => {
     if (customImage) {
+      // Validate custom image before executing model
+      const validation = await checkIsRetinalImage(customImage);
+      if (!validation.isRetina) {
+        setInferenceError('not the image of retina');
+        setLiveInferenceResult(null);
+        return;
+      }
       try {
         const res = await fetch(customImage);
         const blob = await res.blob();
@@ -551,12 +568,12 @@ export default function InteractiveViewer({
                 <FundusCanvas
                   presetData={activeData}
                   enhancementMode={enhancementMode}
-                  overlays={{ opticDisc: true, vessels: true, microaneurysms: true, exudates: true, hemorrhages: true }}
-                  gradCamOpacity={gradCamOpacity}
+                  overlays={inferenceError === 'not the image of retina' ? { opticDisc: false, vessels: false, microaneurysms: false, exudates: false, hemorrhages: false } : { opticDisc: true, vessels: true, microaneurysms: true, exudates: true, hemorrhages: true }}
+                  gradCamOpacity={inferenceError === 'not the image of retina' ? 0 : gradCamOpacity}
                   splitSliderPos={splitSliderPos}
                   viewMode={viewMode}
                   customImage={customImage}
-                  interactiveHover={!isScanning}
+                  interactiveHover={!isScanning && inferenceError !== 'not the image of retina'}
                   showScanline={isScanning}
                 />
 
@@ -868,138 +885,163 @@ export default function InteractiveViewer({
                 )}
               </div>
 
-              {/* Maximum Softmax Confidence Display */}
-              {(() => {
-                const softmaxList = activeData.softmaxDistribution || [
-                  { grade: 0, label: 'Grade 0: Healthy', prob: activeData.icdrGrade === 0 ? activeData.confidence : 0.5, color: '#10B981' },
-                  { grade: 1, label: 'Grade 1: Mild', prob: activeData.icdrGrade === 1 ? activeData.confidence : 1.2, color: '#0EA5E9' },
-                  { grade: 2, label: 'Grade 2: Moderate', prob: activeData.icdrGrade === 2 ? activeData.confidence : 1.5, color: '#F59E0B' },
-                  { grade: 3, label: 'Grade 3: Severe', prob: activeData.icdrGrade === 3 ? activeData.confidence : 0.8, color: '#F97316' },
-                  { grade: 4, label: 'Grade 4: PDR', prob: activeData.icdrGrade === 4 ? activeData.confidence : 0.2, color: '#EF4444' },
-                ];
-                const maxSoftmaxGrade = softmaxList.reduce((max, item) => item.prob > max.prob ? item : max, softmaxList[0]);
-
-                return (
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/90 via-indigo-50/50 to-slate-50 border-2 border-blue-200 shadow-sm space-y-3.5">
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs font-bold font-mono uppercase tracking-wider text-blue-900">
-                        <Sparkles className="w-4 h-4 text-blue-600 animate-pulse" />
-                        <span>Maximum Softmax Confidence</span>
-                      </div>
-                      <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white font-mono font-extrabold text-[11px] shadow-xs">
-                        Peak Class
-                      </span>
+              {/* IQA Non-Retinal Image Rejection vs Diagnostic Metrics Display */}
+              {inferenceError === 'not the image of retina' ? (
+                <div className="p-6 rounded-3xl bg-rose-50 border-2 border-rose-400 text-rose-900 shadow-md space-y-4 animate-in fade-in duration-200 text-left">
+                  <div className="flex items-center gap-2.5 text-rose-700 font-black font-mono text-sm uppercase">
+                    <AlertOctagon className="w-6 h-6 text-rose-600 animate-pulse flex-shrink-0" />
+                    <span>IQA REJECTION: NOT THE IMAGE OF RETINA</span>
+                  </div>
+                  <p className="text-xs text-rose-900 leading-relaxed font-medium">
+                    The uploaded image was rejected by automated Image Quality Assessment (IQA). The optical morphology, vascular structure, and chromatic characteristics do not match an authentic human retinal fundus photograph.
+                  </p>
+                  <div className="p-3.5 rounded-2xl bg-white border border-rose-200 text-xs text-slate-700 space-y-1.5 shadow-2xs">
+                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600" />
+                      <span>Guidance for Clinician / Operator:</span>
                     </div>
+                    <div className="text-[11px] text-slate-600">• Please upload a valid ocular fundus photograph (.jpg, .png).</div>
+                    <div className="text-[11px] text-slate-600">• Do not upload UI screenshots, documents, code, or non-retinal images.</div>
+                    <div className="text-[11px] text-slate-600">• Or choose any of the 5 calibrated sample retinal presets above.</div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Maximum Softmax Confidence Display */}
+                  {(() => {
+                    const softmaxList = activeData.softmaxDistribution || [
+                      { grade: 0, label: 'Grade 0: Healthy', prob: activeData.icdrGrade === 0 ? activeData.confidence : 0.5, color: '#10B981' },
+                      { grade: 1, label: 'Grade 1: Mild', prob: activeData.icdrGrade === 1 ? activeData.confidence : 1.2, color: '#0EA5E9' },
+                      { grade: 2, label: 'Grade 2: Moderate', prob: activeData.icdrGrade === 2 ? activeData.confidence : 1.5, color: '#F59E0B' },
+                      { grade: 3, label: 'Grade 3: Severe', prob: activeData.icdrGrade === 3 ? activeData.confidence : 0.8, color: '#F97316' },
+                      { grade: 4, label: 'Grade 4: PDR', prob: activeData.icdrGrade === 4 ? activeData.confidence : 0.2, color: '#EF4444' },
+                    ];
+                    const maxSoftmaxGrade = softmaxList.reduce((max, item) => item.prob > max.prob ? item : max, softmaxList[0]);
 
-                    <div className="flex items-end justify-between border-b border-blue-100/80 pb-3">
-                      <div>
-                        <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                          {overrideGrade !== null ? `Grade ${overrideGrade} (Doctor Override)` : activeData.gradeLabel}
+                    return (
+                      <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/90 via-indigo-50/50 to-slate-50 border-2 border-blue-200 shadow-sm space-y-3.5">
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-xs font-bold font-mono uppercase tracking-wider text-blue-900">
+                            <Sparkles className="w-4 h-4 text-blue-600 animate-pulse" />
+                            <span>Maximum Softmax Confidence</span>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white font-mono font-extrabold text-[11px] shadow-xs">
+                            Peak Class
+                          </span>
                         </div>
-                        <div className="text-xs text-slate-500 font-medium mt-0.5">
-                          {activeData.severityCategory}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-3xl font-black font-mono text-blue-700">
-                          {maxSoftmaxGrade.prob}%
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-mono uppercase">Max Probability</div>
-                      </div>
-                    </div>
 
-                    {/* 5-Class Softmax Probability Distribution Bars */}
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex justify-between">
-                        <span>5-Class Softmax Probability Spread</span>
-                        <span className="font-mono text-blue-700 font-bold">100% Normalized</span>
-                      </div>
-                      <div className="space-y-1.5">
-                        {softmaxList.map((item) => {
-                          const isTop = item.grade === maxSoftmaxGrade.grade;
-                          return (
-                            <div key={item.grade} className="space-y-0.5">
-                              <div className="flex items-center justify-between text-xs font-medium">
-                                <span className={`flex items-center gap-1.5 ${isTop ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
-                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                                  {item.label}
-                                  {isTop && (
-                                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 font-mono font-bold">
-                                      MAX CONFIDENCE
-                                    </span>
-                                  )}
-                                </span>
-                                <span className={`font-mono ${isTop ? 'font-extrabold text-blue-700 text-sm' : 'text-slate-500'}`}>
-                                  {item.prob.toFixed(1)}%
-                                </span>
-                              </div>
-                              <div className="w-full h-1.5 bg-slate-200/70 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full rounded-full transition-all duration-500"
-                                  style={{
-                                    width: `${Math.max(item.prob, 1)}%`,
-                                    backgroundColor: item.color,
-                                    boxShadow: isTop ? `0 0 8px ${item.color}` : 'none'
-                                  }}
-                                />
-                              </div>
+                        <div className="flex items-end justify-between border-b border-blue-100/80 pb-3">
+                          <div>
+                            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                              {overrideGrade !== null ? `Grade ${overrideGrade} (Doctor Override)` : activeData.gradeLabel}
                             </div>
-                          );
-                        })}
+                            <div className="text-xs text-slate-500 font-medium mt-0.5">
+                              {activeData.severityCategory}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-3xl font-black font-mono text-blue-700">
+                              {maxSoftmaxGrade.prob}%
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono uppercase">Max Probability</div>
+                          </div>
+                        </div>
+
+                        {/* 5-Class Softmax Probability Distribution Bars */}
+                        <div className="space-y-2">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex justify-between">
+                            <span>5-Class Softmax Probability Spread</span>
+                            <span className="font-mono text-blue-700 font-bold">100% Normalized</span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {softmaxList.map((item) => {
+                              const isTop = item.grade === maxSoftmaxGrade.grade;
+                              return (
+                                <div key={item.grade} className="space-y-0.5">
+                                  <div className="flex items-center justify-between text-xs font-medium">
+                                    <span className={`flex items-center gap-1.5 ${isTop ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
+                                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                                      {item.label}
+                                      {isTop && (
+                                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 font-mono font-bold">
+                                          MAX CONFIDENCE
+                                        </span>
+                                      )}
+                                    </span>
+                                    <span className={`font-mono ${isTop ? 'font-extrabold text-blue-700 text-sm' : 'text-slate-500'}`}>
+                                      {item.prob.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-slate-200/70 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full transition-all duration-500"
+                                      style={{
+                                        width: `${Math.max(item.prob, 1)}%`,
+                                        backgroundColor: item.color,
+                                        boxShadow: isTop ? `0 0 8px ${item.color}` : 'none'
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                      </div>
+                    );
+                  })()}
+
+                  {/* Lesion Morphometry Breakdown Table */}
+                  <div className="space-y-2">
+                    <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Quantitative Lesion Breakdown:
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">
+                        <span className="text-slate-600">Microaneurysms:</span>
+                        <span className="font-mono font-bold text-slate-900">{activeData.lesions?.microaneurysms ?? 0}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">
+                        <span className="text-slate-600">Hemorrhages:</span>
+                        <span className="font-mono font-bold text-slate-900">{activeData.lesions?.hemorrhages ?? 0}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">
+                        <span className="text-slate-600">Hard Exudates:</span>
+                        <span className="font-mono font-bold text-slate-900">{activeData.lesions?.hardExudates ?? 0}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">
+                        <span className="text-slate-600">Cotton Wool Spots:</span>
+                        <span className="font-mono font-bold text-slate-900">{activeData.lesions?.cottonWoolSpots ?? 0}</span>
                       </div>
                     </div>
+                  </div>
 
+                  {/* Doctor Review Notes Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                      Tele-Ophthalmologist Sign-Off Notes:
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={doctorNotes}
+                      onChange={(e) => setDoctorNotes(e.target.value)}
+                      className="w-full p-2.5 text-xs text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
-                );
-              })()}
-
-              {/* Lesion Morphometry Breakdown Table */}
-              <div className="space-y-2">
-                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Quantitative Lesion Breakdown:
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">
-                    <span className="text-slate-600">Microaneurysms:</span>
-                    <span className="font-mono font-bold text-slate-900">{activeData.lesions.microaneurysms}</span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">
-                    <span className="text-slate-600">Hemorrhages:</span>
-                    <span className="font-mono font-bold text-slate-900">{activeData.lesions.hemorrhages}</span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">
-                    <span className="text-slate-600">Hard Exudates:</span>
-                    <span className="font-mono font-bold text-slate-900">{activeData.lesions.hardExudates}</span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex justify-between">
-                    <span className="text-slate-600">Cotton Wool Spots:</span>
-                    <span className="font-mono font-bold text-slate-900">{activeData.lesions.cottonWoolSpots}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Doctor Review Notes Input */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                  Tele-Ophthalmologist Sign-Off Notes:
-                </label>
-                <textarea
-                  rows={3}
-                  value={doctorNotes}
-                  onChange={(e) => setDoctorNotes(e.target.value)}
-                  className="w-full p-2.5 text-xs text-slate-800 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+                </>
+              )}
 
               {/* Action Buttons: Approve & PDF Report */}
               <div className="space-y-2 pt-2">
                 <button
                   onClick={handleApproveAndExport}
-                  className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all cursor-pointer"
+                  disabled={inferenceError === 'not the image of retina'}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <FileText className="w-4 h-4" />
-                  <span>Approve &amp; Export PDF Report</span>
+                  <span>{inferenceError === 'not the image of retina' ? 'Cannot Export: Image Rejected by IQA' : 'Approve & Export PDF Report'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
