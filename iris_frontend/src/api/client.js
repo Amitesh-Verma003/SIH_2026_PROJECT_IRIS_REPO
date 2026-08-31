@@ -6,7 +6,9 @@
  * so we never hard-code a full URL here.
  */
 
-const BASE = '/api';
+const BASE = import.meta.env.VITE_API_URL 
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api` 
+  : '/api';
 
 async function request(path, options = {}) {
   const url = `${BASE}${path}`;

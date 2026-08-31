@@ -8,7 +8,7 @@ _env_file = _backend_dir / ".env" if (_backend_dir / ".env").exists() else _repo
 
 
 class Settings(BaseSettings):
-    database_url: str
+    database_url: str = "sqlite:///./test.db"
     app_name: str = "IRIS DR Screening API"
     debug: bool = False
     frontend_url: str = "http://localhost:5173"
