@@ -6,12 +6,18 @@
  * so we never hard-code a full URL here.
  */
 
-const BASE = import.meta.env.VITE_API_URL 
-  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api` 
-  : '/api';
+export function getBaseUrl() {
+  if (typeof window !== 'undefined' && localStorage.getItem('iris_backend_url')) {
+    return `${localStorage.getItem('iris_backend_url').replace(/\/$/, '')}/api`;
+  }
+  if (import.meta.env.VITE_API_URL) {
+    return `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api`;
+  }
+  return '/api';
+}
 
 async function request(path, options = {}) {
-  const url = `${BASE}${path}`;
+  const url = `${getBaseUrl()}${path}`;
   const isFormData = options.body instanceof FormData;
   const headers = isFormData
     ? { ...options.headers }
