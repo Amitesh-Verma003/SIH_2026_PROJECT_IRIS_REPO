@@ -13,6 +13,10 @@ export function getBaseUrl() {
   if (import.meta.env.VITE_API_URL) {
     return `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api`;
   }
+  // When hosted on Railway, automatically route to the active Railway backend service
+  if (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) {
+    return 'https://astonishing-dedication-production-433d.up.railway.app/api';
+  }
   return '/api';
 }
 
