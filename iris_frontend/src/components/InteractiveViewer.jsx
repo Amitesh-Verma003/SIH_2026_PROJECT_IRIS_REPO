@@ -221,8 +221,14 @@ export default function InteractiveViewer({
       const detailMsg = (err.detail || err.message || '').toLowerCase();
       if (detailMsg.includes('not the image of retina') || detailMsg.includes('not a retinal')) {
         setInferenceError('not the image of retina');
-      } else if (err.message?.includes('Failed to fetch')) {
-        setInferenceError('Backend offline: Start iris_backend (uvicorn app.main:app --reload) for live PyTorch inference.');
+      } else if (
+        err.message?.includes('Failed to fetch') || 
+        err.message?.includes('Load failed') || 
+        detailMsg.includes('failed to fetch') || 
+        detailMsg.includes('load failed') ||
+        err.status === 404
+      ) {
+        setInferenceError('Backend API service offline. Deploy iris_backend on Railway to connect live PyTorch model. Displaying edge diagnostic telemetry.');
       } else {
         setInferenceError(`Model inference error: ${err.detail || err.message}`);
       }

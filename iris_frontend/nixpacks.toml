@@ -5,4 +5,4 @@ nixPkgs = ["nodejs_20"]
 cmds = ["npm ci || npm install", "npm run build"]
 
 [start]
-cmd = "npm run preview"
+cmd = "sirv dist --host 0.0.0.0 --port $PORT --single --cors"
