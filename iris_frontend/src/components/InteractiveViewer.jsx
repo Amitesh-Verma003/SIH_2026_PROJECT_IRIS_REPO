@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import FundusCanvas from './FundusCanvas';
+import NearestOphthalmologistMap from './NearestOphthalmologistMap';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
 import { getNearestHealthcareCenters } from '../assets/referralData';
 import { createScreeningSession, addFundusImage } from '../api/screenings';
@@ -635,164 +636,102 @@ export default function InteractiveViewer({
 
             </div>
 
-            {/* 2. DIRECT SPECIALIST REFERRAL & NEAREST AYUSH HEALTH CENTRE (Leftover Space Resolved!) */}
-            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-4 text-left animate-in fade-in duration-300">
-              
-              {/* Card Title & Tele-Referral Badges */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-xl bg-blue-50 text-blue-700">
-                      <Stethoscope className="w-4 h-4" />
-                    </div>
-                    <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
-                      Localized Tertiary Referral &amp; AYUSH Health Centres
-                    </h3>
+            {/* 2. NEAREST OPHTHALMOLOGIST & HOSPITAL MAP INTEGRATION */}
+            <NearestOphthalmologistMap
+              ophthalmologist={nearestCenters.ophthalmologist}
+              patientName={activeData.patientName}
+              patientId={activeData.patientId}
+              icdrGrade={activeData.gradeName}
+              referralToken={referralToken}
+              onGenerateToken={() => {
+                const token = `#REF-${userDistrict.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+                setReferralToken(token);
+              }}
+            />
+
+            {/* 3. COMPLEMENTARY AYUSH HEALTH & WELLNESS CENTRE (Integrative Post-Triage Support) */}
+            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3 text-left animate-in fade-in duration-300">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-xl bg-emerald-50 text-emerald-700">
+                    <HeartPulse className="w-4 h-4" />
                   </div>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    Proximity-matched health network for <strong className="text-blue-700">{userDistrict}, {userState}</strong>
-                  </p>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
+                      Nearest AYUSH Health &amp; Wellness Centre (AHWC)
+                    </h4>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      Ayushman Arogya Mandir • Holistic Microvascular Support &amp; Glycemic Rehabilitation
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
-                    <BadgeCheck className="w-3 h-3 text-emerald-600" />
-                    <span>AB PM-JAY &amp; AYUSH Network</span>
-                  </span>
-                </div>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
+                  <BadgeCheck className="w-3 h-3 text-emerald-600" />
+                  <span>National AYUSH Mission</span>
+                </span>
               </div>
 
-              {/* Grid of 2 Localized Care Providers */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {/* 1. Closest Ophthalmologist & Vitreoretinal Unit */}
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/70 via-indigo-50/30 to-slate-50 border border-blue-200/90 shadow-xs flex flex-col justify-between space-y-3 hover:border-blue-300 transition-all">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono uppercase tracking-wider text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-md">
-                        <Eye className="w-3 h-3 text-blue-600" />
-                        <span>Closest Eye Specialist</span>
-                      </span>
-                      <span className="text-[11px] font-mono font-bold text-blue-800 bg-white px-2 py-0.5 rounded-md border border-blue-200 shadow-2xs">
-                        {nearestCenters.ophthalmologist.distance} • {nearestCenters.ophthalmologist.eta}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
-                        {nearestCenters.ophthalmologist.name}
-                      </h4>
-                      <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
-                        {nearestCenters.ophthalmologist.doctor}
-                      </p>
-                      <p className="text-[10px] text-slate-500">{nearestCenters.ophthalmologist.designation}</p>
-                    </div>
-
-                    <div className="text-[11px] text-slate-600 flex items-start gap-1.5 pt-1">
-                      <MapPin className="w-3.5 h-3.5 text-blue-600 flex-shrink-0 mt-0.5" />
-                      <span className="leading-tight">{nearestCenters.ophthalmologist.address}</span>
-                    </div>
-
-                    {/* Key Specialized Facilities */}
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {nearestCenters.ophthalmologist.facilities?.slice(0, 3).map((f, i) => (
-                        <span key={i} className="text-[9px] font-mono bg-white/90 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
-                          {f}
-                        </span>
-                      ))}
-                    </div>
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/70 via-teal-50/30 to-slate-50 border border-emerald-200/90 shadow-xs flex flex-col justify-between space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono uppercase tracking-wider text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                      <HeartPulse className="w-3 h-3 text-emerald-700" />
+                      <span>{nearestCenters.ayushCenter.type}</span>
+                    </span>
+                    <span className="text-[11px] font-mono font-bold text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-200 shadow-2xs">
+                      {nearestCenters.ayushCenter.distance} • {nearestCenters.ayushCenter.eta}
+                    </span>
                   </div>
 
-                  {/* Contact & Fast-Track Referral Action */}
-                  <div className="pt-2 border-t border-blue-100/80 space-y-2">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500 font-mono">Tele-Consult:</span>
-                      <a href={`tel:${nearestCenters.ophthalmologist.phone}`} className="font-mono font-bold text-blue-700 hover:underline flex items-center gap-1">
-                        <PhoneCall className="w-3 h-3" />
-                        <span>{nearestCenters.ophthalmologist.phone.split('/')[0].trim()}</span>
-                      </a>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const token = `#REF-${userDistrict.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-                        setReferralToken(token);
-                      }}
-                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
-                        referralToken
-                          ? 'bg-emerald-600 text-white shadow-emerald-600/20'
-                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20'
-                      }`}
-                    >
-                      {referralToken ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Referral Dispatched ({referralToken})</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Initiate Fast-Track Referral</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </>
-                      )}
-                    </button>
+                  <div>
+                    <h5 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
+                      {nearestCenters.ayushCenter.name}
+                    </h5>
+                    <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
+                      {nearestCenters.ayushCenter.doctor}
+                    </p>
+                    <p className="text-[10px] text-slate-500">{nearestCenters.ayushCenter.designation}</p>
                   </div>
-                </div>
 
-                {/* 2. Nearest Ayush Health & Wellness Centre (AHWC) */}
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/70 via-teal-50/30 to-slate-50 border border-emerald-200/90 shadow-xs flex flex-col justify-between space-y-3 hover:border-emerald-300 transition-all">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono uppercase tracking-wider text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
-                        <HeartPulse className="w-3 h-3 text-emerald-700" />
-                        <span>Nearest AYUSH Centre</span>
-                      </span>
-                      <span className="text-[11px] font-mono font-bold text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-200 shadow-2xs">
-                        {nearestCenters.ayushCenter.distance} • {nearestCenters.ayushCenter.eta}
-                      </span>
-                    </div>
+                  <div className="text-[11px] text-slate-600 flex items-start gap-1.5 pt-1">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <span className="leading-tight">{nearestCenters.ayushCenter.address}</span>
+                  </div>
 
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
-                        {nearestCenters.ayushCenter.name}
-                      </h4>
-                      <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
-                        {nearestCenters.ayushCenter.doctor}
-                      </p>
-                      <p className="text-[10px] text-slate-500">{nearestCenters.ayushCenter.designation}</p>
-                    </div>
-
-                    <div className="text-[11px] text-slate-600 flex items-start gap-1.5 pt-1">
-                      <MapPin className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                      <span className="leading-tight">{nearestCenters.ayushCenter.address}</span>
-                    </div>
-
-                    {/* Key AYUSH Integrative Services */}
+                  {nearestCenters.ayushCenter.services && (
                     <div className="flex flex-wrap gap-1 pt-1">
-                      {nearestCenters.ayushCenter.services?.slice(0, 2).map((s, i) => (
+                      {nearestCenters.ayushCenter.services.slice(0, 3).map((s, i) => (
                         <span key={i} className="text-[9px] font-mono bg-white/90 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
                           {s}
                         </span>
                       ))}
                     </div>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-emerald-100/80 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-emerald-600" />
+                    <span>OPD: 08:00 AM - 04:00 PM</span>
                   </div>
 
-                  {/* Contact & Assign Care Action */}
-                  <div className="pt-2 border-t border-emerald-100/80 space-y-2">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500 font-mono">OPD Hours:</span>
-                      <span className="font-mono font-semibold text-slate-700 flex items-center gap-1 text-[10px]">
-                        <Clock className="w-3 h-3 text-emerald-600" />
-                        <span>08:00 AM - 04:00 PM</span>
-                      </span>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={nearestCenters.ayushCenter.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nearestCenters.ayushCenter.name)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-1.5 px-2.5 rounded-xl text-[11px] font-bold bg-white text-emerald-700 border border-emerald-200 shadow-2xs hover:bg-emerald-50 flex items-center gap-1 transition-all"
+                    >
+                      <Navigation className="w-3 h-3 text-emerald-600" />
+                      <span>Maps</span>
+                      <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+                    </a>
 
                     <button
                       type="button"
-                      onClick={() => setAyushAssigned(true)}
-                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                      onClick={() => setAyushAssigned(!ayushAssigned)}
+                      className={`py-1.5 px-3 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs ${
                         ayushAssigned
                           ? 'bg-teal-700 text-white shadow-teal-700/20'
                           : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
@@ -800,22 +739,19 @@ export default function InteractiveViewer({
                     >
                       {ayushAssigned ? (
                         <>
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Assigned to AYUSH Care Queue</span>
+                          <Check className="w-3 h-3" />
+                          <span>Assigned to AYUSH</span>
                         </>
                       ) : (
                         <>
-                          <HeartPulse className="w-3.5 h-3.5" />
-                          <span>Assign Post-Triage Care</span>
-                          <ArrowRight className="w-3 h-3" />
+                          <HeartPulse className="w-3 h-3" />
+                          <span>Assign Integrative Care</span>
                         </>
                       )}
                     </button>
                   </div>
                 </div>
-
               </div>
-
             </div>
 
           </div>

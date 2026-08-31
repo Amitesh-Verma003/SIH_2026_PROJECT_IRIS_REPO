@@ -361,3 +361,44 @@ class ModelInfoOut(BaseModel):
     training: dict[str, Any]
     class_distribution: dict[str, int]
 
+
+# ------------------------------------------------------------
+# Nearest Ophthalmologist & Notification Schemas
+# ------------------------------------------------------------
+
+class NearestOphthalmologistOut(BaseModel):
+    name: str
+    doctor: str
+    designation: str
+    type: str
+    distance: str
+    eta: str
+    lat: float
+    lng: float
+    address: str
+    phone: str
+    emergency_phone: Optional[str] = None
+    empanelment: Optional[str] = None
+    facilities: list[str] = Field(default_factory=list)
+    turnaround_time: Optional[str] = None
+    google_maps_url: str
+
+
+class ReferralNotifyRequest(BaseModel):
+    patient_name: str
+    patient_id: str
+    referral_token: str
+    icdr_grade: str
+    hospital_name: str
+    doctor_name: str
+    google_maps_url: str
+    contact_phone: Optional[str] = None
+
+
+class ReferralNotifyResponse(BaseModel):
+    status: str
+    referral_token: str
+    message: str
+    dispatched_at: datetime
+    google_maps_url: str
+
