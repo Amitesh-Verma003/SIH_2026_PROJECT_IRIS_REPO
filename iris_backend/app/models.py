@@ -11,9 +11,10 @@ import uuid
 from sqlalchemy import (
     Column, String, Text, Boolean, SmallInteger, Integer, Numeric,
     TIMESTAMP, Date, ForeignKey, CheckConstraint, UniqueConstraint,
-    func,
+    func, JSON, Uuid
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+UUID = Uuid
+JSONB = JSON
 
 from app.database import Base
 

@@ -115,13 +115,33 @@ CLASS_METADATA = [
 
 
 def resolve_model_paths() -> Tuple[Path, Optional[Path]]:
-    """Locate the trained model weights and config json file."""
-    # Preferred: model_output/ relative to project root
+    """Locate the trained model weights and config json file across various deployment environments."""
+    # Check environment variable overrides first
+    env_path = os.environ.get("MODEL_PATH")
+    if env_path:
+        p = Path(env_path).resolve()
+        if p.is_file() and p.exists():
+            cfg_p = p.parent / "model_config.json"
+            return p, cfg_p if cfg_p.exists() else None
+
+    env_dir = os.environ.get("MODEL_DIR")
+    if env_dir:
+        dir_p = Path(env_dir).resolve()
+        w_p = dir_p / "iris_dr_model.pth"
+        if w_p.exists():
+            cfg_p = dir_p / "model_config.json"
+            return w_p, cfg_p if cfg_p.exists() else None
+
+    # Candidate directories relative to classifier.py and current working directory
+    this_dir = Path(__file__).resolve().parent
     candidates = [
-        Path(__file__).resolve().parent.parent.parent.parent / "model_output",
-        Path(__file__).resolve().parent.parent.parent / "model_output",
-        Path.cwd() / "model_output",
-        Path.cwd().parent / "model_output",
+        this_dir.parent.parent / "model_output",          # iris_backend/model_output
+        this_dir.parent / "model_output",                 # iris_backend/app/model_output
+        this_dir / "model_output",                        # iris_backend/app/ml/model_output
+        this_dir.parent.parent.parent / "model_output",   # repo_root/model_output
+        Path.cwd() / "model_output",                      # ./model_output
+        Path.cwd() / "iris_backend" / "model_output",     # ./iris_backend/model_output
+        Path.cwd().parent / "model_output",               # ../model_output
     ]
 
     for cand in candidates:
@@ -131,7 +151,7 @@ def resolve_model_paths() -> Tuple[Path, Optional[Path]]:
             return weights_file, config_file if config_file.exists() else None
 
     # Fallback to model_output_part1, 2, etc.
-    for cand_root in [Path.cwd(), Path(__file__).resolve().parent.parent.parent.parent]:
+    for cand_root in [this_dir.parent.parent, this_dir.parent.parent.parent, Path.cwd(), Path.cwd().parent]:
         for part in ["model_output_part5", "model_output_part3", "model_output_part2", "model_output_part1"]:
             weights_file = cand_root / part / "iris_dr_model.pth"
             if weights_file.exists():
