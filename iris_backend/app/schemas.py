@@ -327,6 +327,43 @@ class LesionEstimate(BaseModel):
     breakdown: Optional[dict[str, Any]] = None
 
 
+class GlaucomaNeuroretinalRim(BaseModel):
+    rim_disc_ratio: float
+    isnt_rule_compliance: str
+    vertical_disc_diameter_px: int
+    vertical_cup_diameter_px: int
+
+
+class GlaucomaLandmarks(BaseModel):
+    disc_center: dict[str, float]
+    disc_radius_pct: float
+    cup_center: dict[str, float]
+    cup_radius_pct: float
+    disc_contour: list[dict[str, float]] = Field(default_factory=list)
+    cup_contour: list[dict[str, float]] = Field(default_factory=list)
+
+
+class GlaucomaResult(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    model_name: str = "refuge_unet_glaucoma"
+    model_version: str = "1.0.0"
+    model_architecture: str = "6-Level UNet + Logistic Regression"
+    glaucoma_detected: bool
+    glaucoma_risk: str
+    severity_label: str
+    glaucoma_probability: float
+    vcdr: float
+    hcdr: float
+    area_cdr: float
+    referable_flag: bool
+    urgency_level: str
+    badge_color: str
+    doctor_recommendation: str
+    neuroretinal_rim: Optional[GlaucomaNeuroretinalRim] = None
+    landmarks: Optional[GlaucomaLandmarks] = None
+    overlay_base64: Optional[str] = None
+
+
 class DrPredictionOut(BaseModel):
     model_config = ConfigDict(extra="allow")
     model_name: str = "iris_dr_efficientnet_b0"
@@ -345,6 +382,7 @@ class DrPredictionOut(BaseModel):
     grad_cam: GradCamResult
     lesions: dict[str, Any]
     landmarks: Optional[dict[str, Any]] = None
+    glaucoma: Optional[GlaucomaResult] = None
     session_id: Optional[UUID] = None
     image_id: Optional[UUID] = None
     grading_id: Optional[UUID] = None
@@ -360,6 +398,18 @@ class ModelInfoOut(BaseModel):
     image_size: int
     training: dict[str, Any]
     class_distribution: dict[str, int]
+
+
+class GlaucomaModelInfoOut(BaseModel):
+    model_name: str
+    model_architecture: str
+    version: str
+    input_resolution: int
+    challenge_dataset: str
+    segmentation_targets: list[str]
+    classification_metric: str
+    clinical_thresholds: dict[str, Any]
+    validation_benchmarks: dict[str, Any]
 
 
 # ------------------------------------------------------------

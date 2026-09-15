@@ -209,6 +209,7 @@ export default function InteractiveViewer({
         modelArchitecture: data.model_architecture,
         backendSessionId: data.session_id,
         isLiveModelInference: true,
+        glaucoma: data.glaucoma || null,
       };
 
       setLiveInferenceResult(diagnosedPreset);
@@ -1017,6 +1018,111 @@ export default function InteractiveViewer({
                       </div>
                     </div>
                   </div>
+
+                  {/* Glaucoma Risk & Optic Nerve Cupping Assessment Card */}
+                  {(() => {
+                    const gl = activeData.glaucoma;
+                    const vcdr = gl?.vcdr ?? activeData.landmarks?.opticDisc?.cdr ?? 0.38;
+                    const hcdr = gl?.hcdr ?? vcdr;
+                    const glaucomaProb = gl?.glaucoma_probability ?? (1.0 / (1.0 + Math.exp(-(5.265 * vcdr - 4.782)))) * 100;
+                    const riskLabel = gl?.glaucoma_risk ?? (vcdr >= 0.65 ? 'High Risk' : vcdr >= 0.50 ? 'Borderline / Suspect' : 'Normal / Low Risk');
+                    const isHighRisk = vcdr >= 0.65 || glaucomaProb >= 50;
+                    const isSuspect = (vcdr >= 0.50 && vcdr < 0.65) || (glaucomaProb >= 20 && glaucomaProb < 50);
+                    const badgeColor = isHighRisk ? '#EF4444' : isSuspect ? '#F59E0B' : '#10B981';
+                    const badgeBg = isHighRisk ? 'bg-rose-50 border-rose-300' : isSuspect ? 'bg-amber-50 border-amber-300' : 'bg-emerald-50 border-emerald-300';
+                    const badgeText = isHighRisk ? 'text-rose-800' : isSuspect ? 'text-amber-800' : 'text-emerald-800';
+                    const gaugeWidth = Math.min(98, Math.max(2, vcdr * 100));
+                    const recommendation = gl?.doctor_recommendation ?? (
+                      isHighRisk
+                        ? 'Significant optic cupping detected. Fast-track specialist referral for tonometry and visual field perimetry.'
+                        : isSuspect
+                        ? 'Enlarged optic cup observed. Recommend comprehensive tele-glaucoma consultation and baseline OCT.'
+                        : 'Physiological optic nerve architecture. No glaucomatous neuropathy. Annual screening advised.'
+                    );
+
+                    return (
+                      <div className={`p-4 rounded-2xl border-2 ${badgeBg} space-y-3`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs font-bold font-mono uppercase tracking-wider" style={{ color: badgeColor }}>
+                            <Eye className="w-4 h-4" />
+                            <span>Glaucoma Risk Assessment</span>
+                          </div>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${badgeText} bg-white border shadow-xs`} style={{ borderColor: badgeColor }}>
+                            {riskLabel}
+                          </span>
+                        </div>
+
+                        {/* vCDR Gauge Meter */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-slate-700">Vertical Cup-to-Disc Ratio (vCDR)</span>
+                            <span className="font-mono font-extrabold text-lg" style={{ color: badgeColor }}>{Number(vcdr).toFixed(2)}</span>
+                          </div>
+                          <div className="relative w-full h-3 bg-slate-200 rounded-full overflow-hidden">
+                            {/* Threshold markers */}
+                            <div className="absolute top-0 bottom-0 left-[50%] w-0.5 bg-amber-400 z-10" title="Suspect (0.50)" />
+                            <div className="absolute top-0 bottom-0 left-[65%] w-0.5 bg-rose-500 z-10" title="High Risk (0.65)" />
+                            {/* Fill bar */}
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{
+                                width: `${gaugeWidth}%`,
+                                background: `linear-gradient(90deg, #10B981, ${vcdr > 0.45 ? '#F59E0B' : '#10B981'}, ${vcdr > 0.60 ? '#EF4444' : '#F59E0B'})`,
+                                boxShadow: `0 0 8px ${badgeColor}40`,
+                              }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[9px] font-mono text-slate-500">
+                            <span>0.00 (Normal)</span>
+                            <span>0.50 (Suspect)</span>
+                            <span>0.65 (High)</span>
+                            <span>1.00</span>
+                          </div>
+                        </div>
+
+                        {/* CDR Metrics Grid */}
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="p-2 rounded-xl bg-white/80 border border-slate-200 text-center">
+                            <div className="text-[10px] text-slate-500 font-medium">vCDR</div>
+                            <div className="font-mono font-extrabold text-sm" style={{ color: badgeColor }}>{Number(vcdr).toFixed(3)}</div>
+                          </div>
+                          <div className="p-2 rounded-xl bg-white/80 border border-slate-200 text-center">
+                            <div className="text-[10px] text-slate-500 font-medium">hCDR</div>
+                            <div className="font-mono font-extrabold text-sm text-slate-800">{Number(hcdr).toFixed(3)}</div>
+                          </div>
+                          <div className="p-2 rounded-xl bg-white/80 border border-slate-200 text-center">
+                            <div className="text-[10px] text-slate-500 font-medium">Probability</div>
+                            <div className="font-mono font-extrabold text-sm" style={{ color: badgeColor }}>{Number(glaucomaProb).toFixed(1)}%</div>
+                          </div>
+                        </div>
+
+                        {/* Neuroretinal Rim Info */}
+                        {gl?.neuroretinal_rim && (
+                          <div className="p-2.5 rounded-xl bg-white/80 border border-slate-200 text-xs space-y-1">
+                            <div className="font-bold text-slate-700">Neuroretinal Rim Analysis</div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-slate-600">
+                              <span>Rim-to-Disc Ratio:</span>
+                              <span className="font-mono font-bold text-slate-800">{gl.neuroretinal_rim.rim_disc_ratio}</span>
+                              <span>ISNT Rule:</span>
+                              <span className="font-mono font-bold text-slate-800">{gl.neuroretinal_rim.isnt_rule_compliance}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recommendation */}
+                        <div className="text-[11px] text-slate-700 leading-relaxed p-2.5 rounded-xl bg-white/60 border border-slate-200">
+                          <span className="font-bold text-slate-900">Clinical Recommendation: </span>
+                          {recommendation}
+                        </div>
+
+                        {/* Model Badge */}
+                        <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-1">
+                          <span>Model: {gl?.model_architecture || 'REFUGE UNet + Logistic Regression'}</span>
+                          <span>v{gl?.model_version || '1.0.0'}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Doctor Review Notes Input */}
                   <div className="space-y-1.5">

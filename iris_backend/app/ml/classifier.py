@@ -25,6 +25,7 @@ from PIL import Image, ImageFilter
 
 from app.ml.preprocessor import get_preprocessor
 from app.ml.segmentor import get_segmentor
+from app.ml.glaucoma import get_glaucoma_engine
 
 try:
     import torch
@@ -428,6 +429,30 @@ class DRClassifierService:
         segmentor = get_segmentor()
         seg_data = segmentor.segment_all(enhanced_image)
 
+        # 2b. Glaucoma Deep Learning Analysis (REFUGE UNet Segmentation & Logistic Classifier)
+        glaucoma_data = None
+        try:
+            glaucoma_engine = get_glaucoma_engine()
+            glaucoma_data = glaucoma_engine.analyze(enhanced_image)
+            # Calibrate optic disc landmark with deep UNet localization if available
+            if glaucoma_data and glaucoma_data.get("landmarks", {}).get("disc_center"):
+                dc = glaucoma_data["landmarks"]["disc_center"]
+                dr = glaucoma_data["landmarks"]["disc_radius_pct"]
+                vcdr = glaucoma_data.get("vcdr", 0.40)
+                seg_data["landmarks"]["opticDisc"] = {
+                    "x": dc["x"],
+                    "y": dc["y"],
+                    "radius": dr,
+                    "cdr": vcdr,
+                    "color": glaucoma_data.get("badge_color", "#06B6D4"),
+                    "label": f"Optic Disc (vCDR: {vcdr:.2f})",
+                    "discContour": glaucoma_data["landmarks"].get("disc_contour", []),
+                    "cupContour": glaucoma_data["landmarks"].get("cup_contour", []),
+                    "glaucomaRisk": glaucoma_data.get("glaucoma_risk", "Low Risk"),
+                }
+        except Exception as gl_err:
+            logger.warning("Glaucoma analysis in predict pipeline error: %s", gl_err)
+
         # 3. Model Inference on enhanced image
         tensor_in = self.transform(enhanced_image).unsqueeze(0).to(self.device)  # (1, 3, 224, 224)
 
@@ -487,6 +512,7 @@ class DRClassifierService:
             },
             "landmarks": seg_data["landmarks"],
             "lesions": seg_data["lesions"],
+            "glaucoma": glaucoma_data,
         }
 
 

@@ -247,37 +247,120 @@ export default function FundusCanvas({
 
     // Draw Biomarker Segments
     if (presetData.landmarks) {
-      // 1. Optic Disc Landmark
-      if (overlays.opticDisc && presetData.landmarks.opticDisc) {
+      // 1. Optic Disc Landmark & Glaucoma Cupping Segmentation
+      if (overlays.opticDisc && presetData.landmarks?.opticDisc) {
         const od = presetData.landmarks.opticDisc;
         const x = (od.x / 100) * w;
         const y = (od.y / 100) * h;
         const r = (od.radius / 100) * w * 0.5;
 
-        ctx.strokeStyle = '#38BDF8';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 3]);
-        ctx.beginPath();
-        ctx.arc(x, y, r + 4, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
+        // Check if we have authentic UNet segmentation contours
+        const discContour = od.discContour || presetData.glaucoma?.landmarks?.disc_contour;
+        const cupContour = od.cupContour || presetData.glaucoma?.landmarks?.cup_contour;
 
-        // Foveal Target
-        const fov = presetData.landmarks.fovea;
-        const fx = (fov.x / 100) * w;
-        const fy = (fov.y / 100) * h;
-        ctx.strokeStyle = '#60A5FA';
+        if (discContour && discContour.length > 3) {
+          // Render deep segmented Optic Disc contour
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo((discContour[0].x / 100) * w, (discContour[0].y / 100) * h);
+          for (let i = 1; i < discContour.length; i++) {
+            ctx.lineTo((discContour[i].x / 100) * w, (discContour[i].y / 100) * h);
+          }
+          ctx.closePath();
+          ctx.strokeStyle = '#06B6D4'; // Cyan rim
+          ctx.lineWidth = 2.5;
+          ctx.shadowColor = '#06B6D4';
+          ctx.shadowBlur = 8;
+          ctx.stroke();
+
+          // Neuroretinal Rim tint (semi-transparent teal)
+          ctx.fillStyle = 'rgba(6, 182, 212, 0.12)';
+          ctx.fill();
+          ctx.restore();
+        } else {
+          // Fallback circle
+          ctx.strokeStyle = '#38BDF8';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.arc(x, y, r + 4, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        if (cupContour && cupContour.length > 3) {
+          // Render deep segmented Optic Cup contour
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo((cupContour[0].x / 100) * w, (cupContour[0].y / 100) * h);
+          for (let i = 1; i < cupContour.length; i++) {
+            ctx.lineTo((cupContour[i].x / 100) * w, (cupContour[i].y / 100) * h);
+          }
+          ctx.closePath();
+          ctx.strokeStyle = '#F59E0B'; // Amber cup rim
+          ctx.lineWidth = 2.5;
+          ctx.shadowColor = '#F59E0B';
+          ctx.shadowBlur = 6;
+          ctx.stroke();
+
+          // Optic Cup fill
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
+          ctx.fill();
+          ctx.restore();
+        } else {
+          // Standard cup circle
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+          ctx.strokeStyle = '#F59E0B';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(x, y, r * (od.cdr || 0.38), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // vCDR badge pill next to Optic Disc
+        const vcdrVal = presetData.glaucoma?.vcdr ?? od.cdr ?? 0.38;
+        const isHighRisk = vcdrVal >= 0.65;
+        const isSuspect = vcdrVal >= 0.50 && vcdrVal < 0.65;
+        const badgeColor = isHighRisk ? '#EF4444' : isSuspect ? '#F59E0B' : '#10B981';
+
+        ctx.save();
+        const pillText = `OD/OC | vCDR: ${Number(vcdrVal).toFixed(2)}`;
+        ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+        const textWidth = ctx.measureText(pillText).width;
+        const pillX = Math.min(w - textWidth - 20, Math.max(10, x - textWidth / 2));
+        const pillY = Math.max(20, y - r - 16);
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        ctx.strokeStyle = badgeColor;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(fx, fy, 12, 0, Math.PI * 2);
+        ctx.roundRect(pillX - 6, pillY - 12, textWidth + 12, 18, 9);
+        ctx.fill();
         ctx.stroke();
-        // Crosshair
-        ctx.beginPath();
-        ctx.moveTo(fx - 16, fy);
-        ctx.lineTo(fx + 16, fy);
-        ctx.moveTo(fx, fy - 16);
-        ctx.lineTo(fx, fy + 16);
-        ctx.stroke();
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(pillText, pillX, pillY + 1);
+        ctx.restore();
+
+        // Foveal Target
+        if (presetData.landmarks.fovea) {
+          const fov = presetData.landmarks.fovea;
+          const fx = (fov.x / 100) * w;
+          const fy = (fov.y / 100) * h;
+          ctx.strokeStyle = '#60A5FA';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(fx, fy, 12, 0, Math.PI * 2);
+          ctx.stroke();
+          // Crosshair
+          ctx.beginPath();
+          ctx.moveTo(fx - 16, fy);
+          ctx.lineTo(fx + 16, fy);
+          ctx.moveTo(fx, fy - 16);
+          ctx.lineTo(fx, fy + 16);
+          ctx.stroke();
+        }
       }
 
       // 2. Lesion Overlays (MAs, Exudates, Hemorrhages)

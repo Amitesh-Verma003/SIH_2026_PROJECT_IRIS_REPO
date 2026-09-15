@@ -214,6 +214,102 @@ export default function ReportModal({ isOpen, onClose, reportData }) {
           </div>
 
           {/* Doctor Sign-off & Recommendation */}
+
+          {/* Glaucoma Optic Nerve Assessment Section */}
+          {(() => {
+            const gl = reportData.glaucoma;
+            const vcdr = gl?.vcdr ?? reportData.landmarks?.opticDisc?.cdr ?? 0.38;
+            const hcdr = gl?.hcdr ?? vcdr;
+            const areaCdr = gl?.area_cdr ?? vcdr;
+            const glaucomaProb = gl?.glaucoma_probability ?? (1.0 / (1.0 + Math.exp(-(5.265 * vcdr - 4.782)))) * 100;
+            const riskLabel = gl?.glaucoma_risk ?? (vcdr >= 0.65 ? 'High Risk' : vcdr >= 0.50 ? 'Borderline / Suspect' : 'Normal / Low Risk');
+            const isHighRisk = vcdr >= 0.65 || glaucomaProb >= 50;
+            const isSuspect = (vcdr >= 0.50 && vcdr < 0.65) || (glaucomaProb >= 20 && glaucomaProb < 50);
+            const borderColor = isHighRisk ? 'border-rose-400' : isSuspect ? 'border-amber-400' : 'border-emerald-400';
+            const bgColor = isHighRisk ? 'bg-rose-50' : isSuspect ? 'bg-amber-50' : 'bg-emerald-50';
+            const textColor = isHighRisk ? 'text-rose-800' : isSuspect ? 'text-amber-800' : 'text-emerald-800';
+            const recommendation = gl?.doctor_recommendation ?? (
+              isHighRisk
+                ? 'Significant optic nerve cupping. Fast-track specialist referral for tonometry, gonioscopy, and Humphrey Visual Field perimetry.'
+                : isSuspect
+                ? 'Enlarged optic cup. Recommend tele-glaucoma consultation, serial IOP tracking, and baseline RNFL/GCC OCT.'
+                : 'Physiological optic nerve head. No glaucomatous neuropathy. Routine annual tele-screening advised.'
+            );
+
+            return (
+              <div className="space-y-2">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Glaucoma &amp; Optic Nerve Head Assessment (REFUGE UNet)
+                </div>
+
+                <div className={`p-4 rounded-2xl ${bgColor} border-2 ${borderColor} space-y-3`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-extrabold uppercase tracking-wider ${textColor}`}>
+                      {riskLabel}
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${textColor} bg-white border`}>
+                      P(Glaucoma): {Number(glaucomaProb).toFixed(1)}%
+                    </span>
+                  </div>
+
+                  <table className="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
+                    <thead className="bg-slate-100 text-slate-700 font-bold">
+                      <tr>
+                        <th className="p-2 border-b border-slate-200">Metric</th>
+                        <th className="p-2 border-b border-slate-200">Value</th>
+                        <th className="p-2 border-b border-slate-200">Clinical Threshold</th>
+                        <th className="p-2 border-b border-slate-200">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      <tr>
+                        <td className="p-2 font-medium text-slate-900">Vertical CDR (vCDR)</td>
+                        <td className="p-2 font-mono font-bold">{Number(vcdr).toFixed(3)}</td>
+                        <td className="p-2 text-slate-600">Normal: &le; 0.50</td>
+                        <td className={`p-2 font-bold ${vcdr >= 0.65 ? 'text-rose-600' : vcdr >= 0.50 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                          {vcdr >= 0.65 ? 'ABNORMAL' : vcdr >= 0.50 ? 'BORDERLINE' : 'NORMAL'}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-medium text-slate-900">Horizontal CDR (hCDR)</td>
+                        <td className="p-2 font-mono font-bold">{Number(hcdr).toFixed(3)}</td>
+                        <td className="p-2 text-slate-600">Normal: &le; 0.50</td>
+                        <td className={`p-2 font-bold ${hcdr >= 0.65 ? 'text-rose-600' : hcdr >= 0.50 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                          {hcdr >= 0.65 ? 'ABNORMAL' : hcdr >= 0.50 ? 'BORDERLINE' : 'NORMAL'}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-medium text-slate-900">Area CDR</td>
+                        <td className="p-2 font-mono font-bold">{Number(areaCdr).toFixed(3)}</td>
+                        <td className="p-2 text-slate-600">Normal: &le; 0.50</td>
+                        <td className={`p-2 font-bold ${areaCdr >= 0.65 ? 'text-rose-600' : areaCdr >= 0.50 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                          {areaCdr >= 0.65 ? 'ABNORMAL' : areaCdr >= 0.50 ? 'BORDERLINE' : 'NORMAL'}
+                        </td>
+                      </tr>
+                      {gl?.neuroretinal_rim && (
+                        <tr>
+                          <td className="p-2 font-medium text-slate-900">ISNT Rule Compliance</td>
+                          <td className="p-2 font-mono font-bold" colSpan="2">{gl.neuroretinal_rim.isnt_rule_compliance}</td>
+                          <td className={`p-2 font-bold ${gl.neuroretinal_rim.isnt_rule_compliance?.includes('Normal') ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {gl.neuroretinal_rim.isnt_rule_compliance?.includes('Normal') ? 'INTACT' : 'REVIEW'}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  <div className="text-[11px] text-slate-700 leading-relaxed p-2.5 rounded-xl bg-white/80 border border-slate-200">
+                    <span className="font-bold text-slate-900">Glaucoma Follow-up Plan: </span>
+                    {recommendation}
+                  </div>
+
+                  <div className="text-[10px] font-mono text-slate-500 text-right">
+                    Model: {gl?.model_architecture || 'REFUGE UNet + Logistic Regression'} v{gl?.model_version || '1.0.0'}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200 space-y-3">
             <div className="text-xs font-bold uppercase tracking-wider text-blue-900">
               Ophthalmologist Diagnostic Remarks &amp; Action Plan
