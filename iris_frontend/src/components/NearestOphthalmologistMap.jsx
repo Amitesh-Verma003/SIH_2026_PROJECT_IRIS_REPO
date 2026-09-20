@@ -14,6 +14,7 @@ import {
   X,
   MessageSquare
 } from 'lucide-react';
+import { notifyParties } from '../api/referrals';
 
 /**
  * NearestOphthalmologistMap Component
@@ -56,12 +57,27 @@ export default function NearestOphthalmologistMap({
 
   const currentToken = referralToken || `#REF-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  const handleNotifySubmit = () => {
+  const handleNotifySubmit = async () => {
     setNotificationSent(true);
-    setTimeout(() => {
-      setShowNotifyModal(false);
-      setNotificationSent(false);
-    }, 2200);
+    try {
+      await notifyParties({
+        patient_name: patientName,
+        patient_id: patientId,
+        referral_token: currentToken,
+        icdr_grade: icdrGrade,
+        hospital_name: hospitalName,
+        doctor_name: doctorName,
+        google_maps_url: googleMapsUrl,
+        contact_phone: phone,
+      });
+    } catch (e) {
+      console.warn('[IRIS] Backend referral notification dispatch fallback:', e.message);
+    } finally {
+      setTimeout(() => {
+        setShowNotifyModal(false);
+        setNotificationSent(false);
+      }, 2200);
+    }
   };
 
   return (

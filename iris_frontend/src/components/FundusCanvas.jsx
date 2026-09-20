@@ -21,10 +21,34 @@ export default function FundusCanvas({
   showScanline = false,
   interactiveHover = true,
   customImage = null,
+  id = 'fundus-viewport-canvas',
 }) {
   const canvasRef = useRef(null);
+  const heatmapImageRef = useRef(null);
+  const [heatmapLoaded, setHeatmapLoaded] = useState(false);
   const [hoverCoord, setHoverCoord] = useState(null);
   const [hoverActivation, setHoverActivation] = useState(null);
+
+  // Preload authentic PyTorch Grad-CAM heatmap base64 if provided
+  useEffect(() => {
+    const b64 = presetData?.gradCam?.heatmapBase64;
+    if (b64) {
+      const src = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
+      const img = new Image();
+      img.onload = () => {
+        heatmapImageRef.current = img;
+        setHeatmapLoaded(true);
+      };
+      img.onerror = () => {
+        heatmapImageRef.current = null;
+        setHeatmapLoaded(false);
+      };
+      img.src = src;
+    } else {
+      heatmapImageRef.current = null;
+      setHeatmapLoaded(false);
+    }
+  }, [presetData?.gradCam?.heatmapBase64]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -111,7 +135,7 @@ export default function FundusCanvas({
     renderBaseFundus(ctx, width, height, presetData, enhancementMode);
     applyOverlaysAndHeatmap(ctx, width, height);
 
-  }, [presetData, enhancementMode, overlays, gradCamOpacity, splitSliderPos, viewMode, customImage]);
+  }, [presetData, enhancementMode, overlays, gradCamOpacity, splitSliderPos, viewMode, customImage, heatmapLoaded]);
 
   // Main rendering logic
   const renderBaseFundus = (ctx, w, h, data, mode) => {
@@ -422,7 +446,7 @@ export default function FundusCanvas({
     }
 
     // Draw Grad-CAM Heatmap Layer
-    if (viewMode !== 'raw' && gradCamOpacity > 0 && presetData.gradCam?.hotspots) {
+    if (viewMode !== 'raw' && gradCamOpacity > 0 && (presetData.gradCam?.hotspots || presetData.gradCam?.heatmapBase64)) {
       drawGradCamHeatmap(ctx, w, h);
     }
   };
@@ -434,25 +458,31 @@ export default function FundusCanvas({
     heatCanvas.height = h;
     const hCtx = heatCanvas.getContext('2d');
 
-    // Render hotspot gradients
-    presetData.gradCam.hotspots.forEach(hs => {
-      const hx = (hs.x / 100) * w;
-      const hy = (hs.y / 100) * h;
-      const hr = (hs.r / 100) * w;
-      const intensity = hs.intensity;
+    const heatmapImg = heatmapImageRef.current;
+    if (heatmapImg && heatmapImg.complete && heatmapImg.naturalWidth > 0) {
+      // Draw authentic PyTorch Grad-CAM activation heatmap directly
+      hCtx.drawImage(heatmapImg, 0, 0, w, h);
+    } else if (presetData.gradCam?.hotspots) {
+      // Render hotspot gradients
+      presetData.gradCam.hotspots.forEach(hs => {
+        const hx = (hs.x / 100) * w;
+        const hy = (hs.y / 100) * h;
+        const hr = (hs.r / 100) * w;
+        const intensity = hs.intensity;
 
-      const grad = hCtx.createRadialGradient(hx, hy, 2, hx, hy, hr);
-      grad.addColorStop(0, `rgba(255, 0, 0, ${intensity})`);
-      grad.addColorStop(0.25, `rgba(255, 140, 0, ${intensity * 0.85})`);
-      grad.addColorStop(0.5, `rgba(255, 235, 0, ${intensity * 0.7})`);
-      grad.addColorStop(0.75, `rgba(0, 200, 255, ${intensity * 0.4})`);
-      grad.addColorStop(1, 'rgba(0, 0, 180, 0)');
+        const grad = hCtx.createRadialGradient(hx, hy, 2, hx, hy, hr);
+        grad.addColorStop(0, `rgba(255, 0, 0, ${intensity})`);
+        grad.addColorStop(0.25, `rgba(255, 140, 0, ${intensity * 0.85})`);
+        grad.addColorStop(0.5, `rgba(255, 235, 0, ${intensity * 0.7})`);
+        grad.addColorStop(0.75, `rgba(0, 200, 255, ${intensity * 0.4})`);
+        grad.addColorStop(1, 'rgba(0, 0, 180, 0)');
 
-      hCtx.fillStyle = grad;
-      hCtx.beginPath();
-      hCtx.arc(hx, hy, hr, 0, Math.PI * 2);
-      hCtx.fill();
-    });
+        hCtx.fillStyle = grad;
+        hCtx.beginPath();
+        hCtx.arc(hx, hy, hr, 0, Math.PI * 2);
+        hCtx.fill();
+      });
+    }
 
     // Apply Jet / Turbo Colormap Blend
     ctx.save();
@@ -557,6 +587,7 @@ export default function FundusCanvas({
   return (
     <div className="relative w-full h-full flex items-center justify-center select-none group">
       <canvas
+        id={id || 'fundus-viewport-canvas'}
         ref={canvasRef}
         width={600}
         height={600}

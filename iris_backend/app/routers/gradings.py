@@ -89,6 +89,9 @@ def get_glaucoma_model_information():
 async def predict_glaucoma_image(
     file: Optional[UploadFile] = File(None),
     image_base64: Optional[str] = Form(None),
+    image_id: Optional[UUID] = Form(None),
+    save_to_db: bool = Form(False),
+    db: Session = Depends(get_db),
 ):
     """
     Dedicated Glaucoma Optic Disc/Cup Deep Segmentation & Risk Inference Endpoint.
@@ -98,6 +101,7 @@ async def predict_glaucoma_image(
       - Vertical & Horizontal Cup-to-Disc Ratio (vCDR / hCDR)
       - Glaucoma risk probability & clinical referral tier
       - Colorized segmentation overlay mask PNG (base64)
+    Optionally persists assessment record in PostgreSQL if save_to_db=true and image_id is given.
     """
     image_data: Optional[bytes] = None
 
@@ -125,10 +129,74 @@ async def predict_glaucoma_image(
 
     try:
         engine = get_glaucoma_engine()
-        return engine.analyze(pil_image)
+        gl_result = engine.analyze(pil_image)
+
+        if save_to_db and image_id and db:
+            try:
+                rim = gl_result.get("neuroretinal_rim") or {}
+                glaucoma_rec = models.GlaucomaAssessment(
+                    image_id=image_id,
+                    vcdr=gl_result.get("vcdr", 0.38),
+                    hcdr=gl_result.get("hcdr"),
+                    area_cdr=gl_result.get("area_cdr"),
+                    glaucoma_detected=gl_result.get("glaucoma_detected", False),
+                    glaucoma_risk=gl_result.get("glaucoma_risk", "Normal / Low Risk"),
+                    glaucoma_probability=gl_result.get("glaucoma_probability"),
+                    referable_flag=gl_result.get("referable_flag", False),
+                    urgency_level=gl_result.get("urgency_level", "LOW"),
+                    badge_color=gl_result.get("badge_color", "#10B981"),
+                    rim_disc_ratio=rim.get("rim_disc_ratio"),
+                    isnt_rule_compliance=rim.get("isnt_rule_compliance"),
+                    vertical_disc_diameter_px=rim.get("vertical_disc_diameter_px"),
+                    vertical_cup_diameter_px=rim.get("vertical_cup_diameter_px"),
+                    landmarks=gl_result.get("landmarks") or {},
+                    doctor_recommendation=gl_result.get("doctor_recommendation"),
+                    overlay_base64=gl_result.get("overlay_base64"),
+                )
+                db.add(glaucoma_rec)
+                db.commit()
+            except Exception as db_err:
+                logger.warning("Failed to save standalone glaucoma assessment: %s", db_err)
+                db.rollback()
+
+        return gl_result
     except Exception as err:
         logger.exception("Glaucoma inference failure: %s", err)
         raise HTTPException(status_code=500, detail=f"Glaucoma analysis failed: {str(err)}")
+
+
+@router.get("/glaucoma", response_model=list[schemas.GlaucomaAssessmentOut])
+def list_glaucoma_assessments(
+    skip: int = 0,
+    limit: int = 50,
+    image_id: Optional[UUID] = None,
+    referable_only: bool = False,
+    risk_level: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """List historical glaucoma assessments with optional filtering."""
+    query = db.query(models.GlaucomaAssessment)
+    if image_id:
+        query = query.filter(models.GlaucomaAssessment.image_id == image_id)
+    if referable_only:
+        query = query.filter(models.GlaucomaAssessment.referable_flag.is_(True))
+    if risk_level:
+        query = query.filter(models.GlaucomaAssessment.glaucoma_risk.ilike(f"%{risk_level}%"))
+    return (
+        query.order_by(models.GlaucomaAssessment.assessed_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+
+@router.get("/glaucoma/{assessment_id}", response_model=schemas.GlaucomaAssessmentOut)
+def get_glaucoma_assessment(assessment_id: UUID, db: Session = Depends(get_db)):
+    """Fetch single glaucoma assessment including optic disc/cup contours."""
+    rec = db.query(models.GlaucomaAssessment).filter(models.GlaucomaAssessment.id == assessment_id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Glaucoma assessment not found")
+    return rec
 
 
 @router.post("/predict", response_model=schemas.DrPredictionOut)
@@ -232,9 +300,38 @@ async def predict_retinal_image(
                 db.flush()
                 created_image_id = fundus_img.id
 
-                # 3. Create DrGrading record
+                # 3. Create GlaucomaAssessment record if glaucoma analysis is present
+                created_glaucoma_id = None
+                gl_data = prediction.get("glaucoma")
+                if gl_data:
+                    rim = gl_data.get("neuroretinal_rim") or {}
+                    glaucoma_rec = models.GlaucomaAssessment(
+                        image_id=fundus_img.id,
+                        vcdr=gl_data.get("vcdr", 0.38),
+                        hcdr=gl_data.get("hcdr"),
+                        area_cdr=gl_data.get("area_cdr"),
+                        glaucoma_detected=gl_data.get("glaucoma_detected", False),
+                        glaucoma_risk=gl_data.get("glaucoma_risk", "Normal / Low Risk"),
+                        glaucoma_probability=gl_data.get("glaucoma_probability"),
+                        referable_flag=gl_data.get("referable_flag", False),
+                        urgency_level=gl_data.get("urgency_level", "LOW"),
+                        badge_color=gl_data.get("badge_color", "#10B981"),
+                        rim_disc_ratio=rim.get("rim_disc_ratio"),
+                        isnt_rule_compliance=rim.get("isnt_rule_compliance"),
+                        vertical_disc_diameter_px=rim.get("vertical_disc_diameter_px"),
+                        vertical_cup_diameter_px=rim.get("vertical_cup_diameter_px"),
+                        landmarks=gl_data.get("landmarks") or {},
+                        doctor_recommendation=gl_data.get("doctor_recommendation"),
+                        overlay_base64=gl_data.get("overlay_base64"),
+                    )
+                    db.add(glaucoma_rec)
+                    db.flush()
+                    created_glaucoma_id = glaucoma_rec.id
+
+                # 4. Create DrGrading record
                 grading = models.DrGrading(
                     image_id=fundus_img.id,
+                    glaucoma_assessment_id=created_glaucoma_id,
                     icdr_level=prediction["icdr_level"],
                     vtdr_flag=prediction["vtdr_flag"],
                     referable_flag=prediction["referable_flag"],
@@ -244,18 +341,20 @@ async def predict_retinal_image(
                 db.flush()
                 created_grading_id = grading.id
 
-                # 4. If referable, create referral record
-                if prediction["referable_flag"] and patient_id:
+                # 5. If referable (DR or Glaucoma), create referral record
+                is_referable = prediction["referable_flag"] or (gl_data and gl_data.get("referable_flag", False))
+                if is_referable and patient_id:
+                    referral_urgency = (
+                        "emergency"
+                        if prediction["icdr_level"] >= 4
+                        else "urgent"
+                        if prediction["icdr_level"] >= 3 or (gl_data and gl_data.get("urgency_level") == "HIGH")
+                        else "routine"
+                    )
                     referral = models.Referral(
                         screening_session_id=created_session_id,
                         patient_id=patient_id,
-                        urgency_level=(
-                            "emergency"
-                            if prediction["icdr_level"] >= 4
-                            else "urgent"
-                            if prediction["icdr_level"] >= 3
-                            else "routine"
-                        ),
+                        urgency_level=referral_urgency,
                         status_id=1,  # pending
                         reason=prediction["doctor_recommendation"],
                     )
@@ -271,6 +370,7 @@ async def predict_retinal_image(
     prediction["session_id"] = created_session_id
     prediction["image_id"] = created_image_id
     prediction["grading_id"] = created_grading_id
+    prediction["glaucoma_assessment_id"] = created_glaucoma_id if "created_glaucoma_id" in locals() else None
     prediction["referral_id"] = created_referral_id
 
     return prediction

@@ -5,11 +5,30 @@ from sqlalchemy import func
 
 from app.config import settings
 from app.database import engine, get_db
-from app.routers import patients, facilities, screenings, gradings, referrals, lookups
+from app.routers import patients, facilities, screenings, gradings, referrals, lookups, telemetry
 from app import models
 
 # Ensure database tables exist
 models.Base.metadata.create_all(bind=engine)
+
+
+def _run_idempotent_migrations():
+    """Ensure newly introduced columns exist in Postgres/Supabase tables."""
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE capacity_simulations ADD COLUMN IF NOT EXISTS active_phc_nodes INTEGER DEFAULT 50;"))
+            conn.execute(text("ALTER TABLE capacity_simulations ADD COLUMN IF NOT EXISTS compression_ratio TEXT DEFAULT '8.4:1';"))
+            conn.execute(text("ALTER TABLE capacity_simulations ADD COLUMN IF NOT EXISTS bandwidth_saved_tb NUMERIC(6, 2) DEFAULT 2.14;"))
+            conn.execute(text("ALTER TABLE capacity_simulations ADD COLUMN IF NOT EXISTS mean_triage_latency_sec NUMERIC(5, 2) DEFAULT 22.4;"))
+            conn.execute(text("ALTER TABLE capacity_simulations ADD COLUMN IF NOT EXISTS sla_24h_adherence_pct NUMERIC(5, 2) DEFAULT 98.4;"))
+            conn.execute(text("ALTER TABLE dr_gradings ADD COLUMN IF NOT EXISTS glaucoma_assessment_id UUID REFERENCES glaucoma_assessments(id) ON DELETE SET NULL;"))
+            conn.commit()
+    except Exception:
+        pass
+
+
+_run_idempotent_migrations()
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
 
@@ -29,6 +48,7 @@ app.include_router(screenings.router, prefix="/api")
 app.include_router(gradings.router, prefix="/api")
 app.include_router(referrals.router, prefix="/api")
 app.include_router(lookups.router, prefix="/api")
+app.include_router(telemetry.router, prefix="/api")
 
 
 @app.get("/")

@@ -70,3 +70,22 @@ export function getGlaucomaModelInfo() {
   return get('/gradings/glaucoma/model-info');
 }
 
+/**
+ * Query historical Glaucoma assessments with optional filters.
+ */
+export function listGlaucomaAssessments({ skip = 0, limit = 50, image_id, referable_only = false, risk_level } = {}) {
+  const params = new URLSearchParams({ skip, limit });
+  if (image_id) params.set('image_id', image_id);
+  if (referable_only) params.set('referable_only', 'true');
+  if (risk_level) params.set('risk_level', risk_level);
+  return get(`/gradings/glaucoma?${params.toString()}`);
+}
+
+/**
+ * Fetch a single Glaucoma assessment including optic disc and cup contour vectors.
+ */
+export function getGlaucomaAssessment(assessmentId) {
+  return get(`/gradings/glaucoma/${assessmentId}`);
+}
+
+

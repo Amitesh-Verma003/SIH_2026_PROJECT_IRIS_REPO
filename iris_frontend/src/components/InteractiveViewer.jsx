@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   UploadCloud, 
   Sparkles, 
@@ -38,6 +38,7 @@ import NearestOphthalmologistMap from './NearestOphthalmologistMap';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
 import { getNearestHealthcareCenters } from '../assets/referralData';
 import { checkIsRetinalImage } from '../utils/retinaValidator';
+import { renderPresetFundusBlob } from '../utils/presetRenderer';
 import { createScreeningSession, addFundusImage } from '../api/screenings';
 import { createGrading, predictDrGrading, getModelInfo } from '../api/gradings';
 import { createReferral } from '../api/referrals';
@@ -73,6 +74,7 @@ export default function InteractiveViewer({
   const [liveInferenceResult, setLiveInferenceResult] = useState(null);
   const [isInferencing, setIsInferencing] = useState(false);
   const [modelInfo, setModelInfo] = useState(null);
+  const [backendStatus, setBackendStatus] = useState('checking'); // 'online' | 'offline' | 'checking'
   const [inferenceError, setInferenceError] = useState(null);
   const [inferenceSource, setInferenceSource] = useState(null);
 
@@ -92,12 +94,23 @@ export default function InteractiveViewer({
   const userState = currentUser?.state || 'Uttar Pradesh';
   const nearestCenters = getNearestHealthcareCenters(userDistrict, userState);
 
-  // Fetch trained model metadata on component mount
-  useEffect(() => {
+  // Proactive backend connectivity & model metadata check
+  const checkBackendHealth = useCallback(() => {
+    setBackendStatus('checking');
     getModelInfo()
-      .then((data) => setModelInfo(data))
-      .catch((err) => console.info('[IRIS] Model metadata loading...', err.message));
+      .then((data) => {
+        setModelInfo(data);
+        setBackendStatus('online');
+      })
+      .catch((err) => {
+        console.warn('[IRIS] Backend model metadata error:', err.message);
+        setBackendStatus('offline');
+      });
   }, []);
+
+  useEffect(() => {
+    checkBackendHealth();
+  }, [checkBackendHealth]);
 
   useEffect(() => {
     if (currentPreset) {
@@ -132,6 +145,7 @@ export default function InteractiveViewer({
     setInferenceSource(null);
     setIsApproved(false);
     setOverrideGrade(null);
+    if (onCustomImageChange) onCustomImageChange(null);
     triggerScanAnimation();
     if (onSelectPreset) onSelectPreset(FUNDUS_PRESETS[index]);
   };
@@ -167,8 +181,8 @@ export default function InteractiveViewer({
 
       const diagnosedPreset = {
         ...rawPreset,
-        id: 'uploaded-scan',
-        title: `Uploaded Scan: ${label || 'Patient Fundus'}`,
+        id: customImage ? 'uploaded-scan' : `model-${rawPreset.id}`,
+        title: label || (customImage ? 'Uploaded Retinal Scan' : rawPreset.title),
         shortLabel: data.grade_label,
         badgeColor: data.icdr_level === 0 ? 'emerald' : data.icdr_level === 1 ? 'sky' : data.icdr_level === 2 ? 'amber' : data.icdr_level === 3 ? 'orange' : 'rose',
         patientName: currentUser?.patientName || rawPreset.patientName,
@@ -178,6 +192,7 @@ export default function InteractiveViewer({
         eyeSide: activeData.eyeSide || 'OD (Right Eye)',
         icdrGrade: data.icdr_level,
         gradeLabel: data.grade_label,
+        gradeName: data.grade_label,
         severityCategory: data.severity_category,
         confidence: data.confidence_score,
         referable: data.referable_flag,
@@ -214,33 +229,27 @@ export default function InteractiveViewer({
 
       setLiveInferenceResult(diagnosedPreset);
       setInferenceSource(label);
+      setBackendStatus('online');
+
+      // Update doctor notes dynamically with the real model recommendation
+      if (data.doctor_recommendation) {
+        setDoctorNotes(`Reviewed AI Grad-CAM localization (${data.grad_cam?.ai_explanation || 'Focal biomarkers assessed'}). ${data.doctor_recommendation}`);
+      }
+
       if (onSelectPreset) {
         onSelectPreset(diagnosedPreset);
       }
     } catch (err) {
-      console.warn('[IRIS AI] Live inference fallback to calibrated edge model:', err.message);
+      console.error('[IRIS AI] Live inference call failed:', err);
       const detailMsg = (err.detail || err.message || '').toLowerCase();
       if (detailMsg.includes('not the image of retina') || detailMsg.includes('not a retinal')) {
         setInferenceError('not the image of retina');
         setLiveInferenceResult(null);
       } else {
-        // Seamless Edge AI Fallback: Diagnose scan with calibrated edge inference
-        setInferenceError(null);
-        const edgeDiagnosed = {
-          ...rawPreset,
-          id: customImage ? 'uploaded-scan' : rawPreset.id,
-          title: customImage ? `Analyzed Scan: ${label || 'Custom Fundus'}` : rawPreset.title,
-          patientName: currentUser?.patientName || rawPreset.patientName,
-          patientId: currentUser?.patientId || rawPreset.patientId,
-          modelName: 'EfficientNet-B0',
-          modelArchitecture: 'EfficientNet-B0 (Edge Neural Triage)',
-          isLiveModelInference: true,
-        };
-        setLiveInferenceResult(edgeDiagnosed);
-        setInferenceSource(label);
-        if (onSelectPreset) {
-          onSelectPreset(edgeDiagnosed);
-        }
+        const errorDetail = err.detail || err.message || 'Connection refused';
+        setInferenceError(`AI Model Server Unavailable: ${errorDetail}. Please ensure the IRIS AI backend is running on http://localhost:8000.`);
+        setLiveInferenceResult(null);
+        setBackendStatus('offline');
       }
     } finally {
       setIsInferencing(false);
@@ -292,7 +301,14 @@ export default function InteractiveViewer({
         triggerScanAnimation();
       }
     } else {
-      triggerScanAnimation();
+      // Capture and run actual PyTorch model inference on the currently selected preset scan
+      try {
+        const blob = await renderPresetFundusBlob(rawPreset);
+        runModelInference(blob, rawPreset.title || `Sample Retinal Scan #${selectedPresetIndex + 1}`);
+      } catch (e) {
+        console.warn('Could not render preset blob for inference:', e);
+        triggerScanAnimation();
+      }
     }
   };
 
@@ -426,6 +442,30 @@ export default function InteractiveViewer({
                   {customImage 
                     ? 'Uploaded fundus scan synchronized with edge deep-learning inference model' 
                     : `Active Subject: ${activeData.patientName} (${activeData.patientId}) • Non-Mydriatic Fundus Camera (45° FOV)`}
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                    backendStatus === 'online'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : backendStatus === 'checking'
+                      ? 'bg-sky-50 text-sky-800 border-sky-300'
+                      : 'bg-rose-50 text-rose-800 border-rose-300'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      backendStatus === 'online' ? 'bg-emerald-500 animate-ping' : backendStatus === 'checking' ? 'bg-sky-500 animate-pulse' : 'bg-rose-500'
+                    }`} />
+                    <span>
+                      {backendStatus === 'online' ? 'AI SERVER: ONLINE (LIVE PYTORCH MODEL)' : backendStatus === 'checking' ? 'CONNECTING TO AI MODEL...' : 'AI SERVER: OFFLINE (PORT 8000)'}
+                    </span>
+                  </span>
+                  {backendStatus === 'offline' && (
+                    <button
+                      onClick={checkBackendHealth}
+                      className="text-[10px] text-blue-600 underline font-bold hover:text-blue-800 cursor-pointer"
+                    >
+                      Retry Connection
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -851,37 +891,47 @@ export default function InteractiveViewer({
                     </span>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between px-3 py-1 rounded-xl bg-slate-100 text-slate-600 font-mono text-[11px]">
+                  <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-mono text-[11px]">
                     <div className="flex items-center gap-1.5">
-                      <Cpu className="w-3 h-3 text-blue-600" />
-                      <span>Model: EfficientNet-B0 (APTOS 2019)</span>
+                      <Cpu className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Model: EfficientNet-B0 (PyTorch)</span>
                     </div>
-                    <span className="text-[10px] text-slate-500">
-                      {customImage ? 'Ready for live inference' : 'Preset Preview'}
+                    <span className="text-[10px] text-blue-700 font-bold">
+                      {backendStatus === 'online' ? 'Live Model Ready — Click "Run Model Diagnostic"' : 'Preset Preview'}
                     </span>
                   </div>
                 )}
 
                 {/* Inference Error Notification */}
                 {inferenceError && (
-                  <div className={`p-3.5 rounded-2xl border text-xs flex items-start gap-2.5 shadow-sm ${
+                  <div className={`p-3.5 rounded-2xl border text-xs flex items-start justify-between gap-2.5 shadow-sm ${
                     inferenceError === 'not the image of retina'
                       ? 'bg-rose-50 border-rose-300 text-rose-900 ring-2 ring-rose-400/20'
                       : 'bg-amber-50 border-amber-200 text-amber-900'
                   }`}>
-                    <AlertOctagon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
-                      inferenceError === 'not the image of retina' ? 'text-rose-600 animate-pulse' : 'text-amber-600'
-                    }`} />
-                    <div className="leading-snug space-y-0.5">
-                      <div className="font-extrabold text-sm tracking-tight text-rose-900">
-                        {inferenceError === 'not the image of retina' ? 'not the image of retina' : 'Notice'}
-                      </div>
-                      <div className="text-[11px] text-rose-700 font-medium">
-                        {inferenceError === 'not the image of retina'
-                          ? 'The uploaded file does not match retinal fundus camera criteria. Please upload a clear eye fundus photograph.'
-                          : inferenceError}
+                    <div className="flex items-start gap-2.5">
+                      <AlertOctagon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                        inferenceError === 'not the image of retina' ? 'text-rose-600 animate-pulse' : 'text-amber-600'
+                      }`} />
+                      <div className="leading-snug space-y-0.5">
+                        <div className="font-extrabold text-sm tracking-tight text-rose-900">
+                          {inferenceError === 'not the image of retina' ? 'not the image of retina' : 'AI Model Server Notice'}
+                        </div>
+                        <div className="text-[11px] text-slate-700 font-medium">
+                          {inferenceError === 'not the image of retina'
+                            ? 'The uploaded file does not match retinal fundus camera criteria. Please upload a clear eye fundus photograph.'
+                            : inferenceError}
+                        </div>
                       </div>
                     </div>
+                    {backendStatus === 'offline' && (
+                      <button
+                        onClick={checkBackendHealth}
+                        className="px-2.5 py-1 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-900 text-[10px] font-bold cursor-pointer transition-all flex-shrink-0"
+                      >
+                        Retry
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

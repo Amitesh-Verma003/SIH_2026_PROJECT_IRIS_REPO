@@ -40,26 +40,6 @@ def list_referrals(
     ).offset(skip).limit(limit).all()
 
 
-@router.get("/{referral_id}", response_model=schemas.ReferralOut)
-def get_referral(referral_id: UUID, db: Session = Depends(get_db)):
-    referral = db.query(models.Referral).filter(models.Referral.id == referral_id).first()
-    if not referral:
-        raise HTTPException(status_code=404, detail="Referral not found")
-    return referral
-
-
-@router.patch("/{referral_id}", response_model=schemas.ReferralOut)
-def update_referral(referral_id: UUID, payload: schemas.ReferralUpdate, db: Session = Depends(get_db)):
-    referral = db.query(models.Referral).filter(models.Referral.id == referral_id).first()
-    if not referral:
-        raise HTTPException(status_code=404, detail="Referral not found")
-    for field, value in payload.model_dump(exclude_unset=True, by_alias=False).items():
-        setattr(referral, field, value)
-    db.commit()
-    db.refresh(referral)
-    return referral
-
-
 # ------------------------------------------------------------
 # Nearest Ophthalmologist Proximity & Notification Endpoints
 # ------------------------------------------------------------
@@ -172,3 +152,24 @@ def notify_doctor_and_patient(payload: schemas.ReferralNotifyRequest):
         dispatched_at=datetime.now(timezone.utc),
         google_maps_url=payload.google_maps_url,
     )
+
+
+@router.get("/{referral_id}", response_model=schemas.ReferralOut)
+def get_referral(referral_id: UUID, db: Session = Depends(get_db)):
+    referral = db.query(models.Referral).filter(models.Referral.id == referral_id).first()
+    if not referral:
+        raise HTTPException(status_code=404, detail="Referral not found")
+    return referral
+
+
+@router.patch("/{referral_id}", response_model=schemas.ReferralOut)
+def update_referral(referral_id: UUID, payload: schemas.ReferralUpdate, db: Session = Depends(get_db)):
+    referral = db.query(models.Referral).filter(models.Referral.id == referral_id).first()
+    if not referral:
+        raise HTTPException(status_code=404, detail="Referral not found")
+    for field, value in payload.model_dump(exclude_unset=True, by_alias=False).items():
+        setattr(referral, field, value)
+    db.commit()
+    db.refresh(referral)
+    return referral
+

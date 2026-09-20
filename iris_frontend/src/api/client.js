@@ -10,8 +10,9 @@ export function getBaseUrl() {
   if (typeof window !== 'undefined' && localStorage.getItem('iris_backend_url')) {
     return `${localStorage.getItem('iris_backend_url').replace(/\/$/, '')}/api`;
   }
-  if (import.meta.env.VITE_API_URL) {
-    return `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api`;
+  const envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_BACKEND_URL;
+  if (envUrl) {
+    return `${envUrl.replace(/\/$/, '')}/api`;
   }
   // When hosted on Railway, automatically route to the active Railway backend service
   if (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) {

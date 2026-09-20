@@ -221,14 +221,39 @@ class SegmentationResult(Base):
 
 
 # ------------------------------------------------------------
-# 7. GRADING & EXPLAINABILITY
+# 7. GRADING, GLAUCOMA & EXPLAINABILITY
 # ------------------------------------------------------------
+
+class GlaucomaAssessment(Base):
+    __tablename__ = "glaucoma_assessments"
+    id = uuid_pk()
+    image_id = Column(UUID(as_uuid=True), ForeignKey("fundus_images.id"), nullable=False)
+    model_version_id = Column(UUID(as_uuid=True), ForeignKey("model_versions.id"))
+    vcdr = Column(Numeric(4, 3), nullable=False)
+    hcdr = Column(Numeric(4, 3))
+    area_cdr = Column(Numeric(4, 3))
+    glaucoma_detected = Column(Boolean, nullable=False, server_default="false")
+    glaucoma_risk = Column(Text, nullable=False)
+    glaucoma_probability = Column(Numeric(5, 2))
+    referable_flag = Column(Boolean, server_default="false")
+    urgency_level = Column(Text, server_default="LOW")
+    badge_color = Column(Text, server_default="#10B981")
+    rim_disc_ratio = Column(Numeric(4, 3))
+    isnt_rule_compliance = Column(Text)
+    vertical_disc_diameter_px = Column(Integer)
+    vertical_cup_diameter_px = Column(Integer)
+    landmarks = Column(JSONB, server_default="{}")
+    doctor_recommendation = Column(Text)
+    overlay_base64 = Column(Text)
+    assessed_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
 
 class DrGrading(Base):
     __tablename__ = "dr_gradings"
     id = uuid_pk()
     image_id = Column(UUID(as_uuid=True), ForeignKey("fundus_images.id"), nullable=False)
     model_version_id = Column(UUID(as_uuid=True), ForeignKey("model_versions.id"))
+    glaucoma_assessment_id = Column(UUID(as_uuid=True), ForeignKey("glaucoma_assessments.id"))
     icdr_level = Column(SmallInteger, nullable=False)
     vtdr_flag = Column(Boolean, server_default="false")
     referable_flag = Column(Boolean, server_default="false")
@@ -350,6 +375,11 @@ class CapacitySimulation(Base):
     modeled_review_capacity_per_day = Column(Integer)
     bottleneck_identified = Column(Text)
     recommendations = Column(JSONB, server_default="{}")
+    active_phc_nodes = Column(Integer, server_default="50")
+    compression_ratio = Column(Text, server_default="8.4:1")
+    bandwidth_saved_tb = Column(Numeric(6, 2), server_default="2.14")
+    mean_triage_latency_sec = Column(Numeric(5, 2), server_default="22.4")
+    sla_24h_adherence_pct = Column(Numeric(5, 2), server_default="98.4")
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 

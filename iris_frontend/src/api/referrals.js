@@ -19,3 +19,18 @@ export function getReferral(referralId) {
 export function updateReferral(referralId, data) {
   return patch(`/referrals/${referralId}`, data);
 }
+
+/**
+ * Fetch nearest empaneled ophthalmologist & tertiary eye hospital profile.
+ */
+export function getNearestOphthalmologist(district = 'Varanasi') {
+  return get(`/referrals/nearest-ophthalmologist?district=${encodeURIComponent(district)}`);
+}
+
+/**
+ * Dispatch real-time SMS & tele-consultation alerts to both patient and ophthalmologist.
+ */
+export function notifyParties(data) {
+  return post('/referrals/notify-parties', data);
+}
+

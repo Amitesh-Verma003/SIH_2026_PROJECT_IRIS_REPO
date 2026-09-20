@@ -364,6 +364,51 @@ class GlaucomaResult(BaseModel):
     overlay_base64: Optional[str] = None
 
 
+class GlaucomaAssessmentCreate(BaseModel):
+    image_id: UUID
+    model_version_id: Optional[UUID] = None
+    vcdr: float
+    hcdr: Optional[float] = None
+    area_cdr: Optional[float] = None
+    glaucoma_detected: bool = False
+    glaucoma_risk: str
+    glaucoma_probability: Optional[float] = None
+    referable_flag: bool = False
+    urgency_level: str = "LOW"
+    badge_color: str = "#10B981"
+    rim_disc_ratio: Optional[float] = None
+    isnt_rule_compliance: Optional[str] = None
+    vertical_disc_diameter_px: Optional[int] = None
+    vertical_cup_diameter_px: Optional[int] = None
+    landmarks: Optional[dict[str, Any]] = None
+    doctor_recommendation: Optional[str] = None
+    overlay_base64: Optional[str] = None
+
+
+class GlaucomaAssessmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    id: UUID
+    image_id: UUID
+    model_version_id: Optional[UUID] = None
+    vcdr: float
+    hcdr: Optional[float] = None
+    area_cdr: Optional[float] = None
+    glaucoma_detected: bool
+    glaucoma_risk: str
+    glaucoma_probability: Optional[float] = None
+    referable_flag: bool
+    urgency_level: str
+    badge_color: str
+    rim_disc_ratio: Optional[float] = None
+    isnt_rule_compliance: Optional[str] = None
+    vertical_disc_diameter_px: Optional[int] = None
+    vertical_cup_diameter_px: Optional[int] = None
+    landmarks: Optional[dict[str, Any]] = None
+    doctor_recommendation: Optional[str] = None
+    overlay_base64: Optional[str] = None
+    assessed_at: datetime
+
+
 class DrPredictionOut(BaseModel):
     model_config = ConfigDict(extra="allow")
     model_name: str = "iris_dr_efficientnet_b0"
@@ -386,6 +431,7 @@ class DrPredictionOut(BaseModel):
     session_id: Optional[UUID] = None
     image_id: Optional[UUID] = None
     grading_id: Optional[UUID] = None
+    glaucoma_assessment_id: Optional[UUID] = None
     referral_id: Optional[UUID] = None
 
 
@@ -451,4 +497,69 @@ class ReferralNotifyResponse(BaseModel):
     message: str
     dispatched_at: datetime
     google_maps_url: str
+
+
+# ------------------------------------------------------------
+# Simulink PHC Telemetry & Capacity Simulation Schemas
+# ------------------------------------------------------------
+
+class PhcNodeTelemetry(BaseModel):
+    id: str
+    name: str
+    district: str
+    state: str
+    bandwidth_tier: str
+    bandwidth_kbps: int
+    compression_enabled: bool
+    compression_ratio: str
+    packet_size_mb: float
+    latency_seconds: float
+    queue_depth: int
+    status: str
+
+
+class SimulinkTelemetryOut(BaseModel):
+    total_screenings_modeled: int
+    active_phc_nodes: int
+    mean_triage_latency_sec: float
+    sla_24h_adherence_pct: float
+    bandwidth_saved_tb: float
+    compression_ratio: str
+    packet_size_compressed_mb: float
+    packet_size_raw_mb: float
+    phc_nodes: list[PhcNodeTelemetry]
+
+
+class CapacitySimulationCreate(BaseModel):
+    district_id: UUID
+    target_annual_screenings: Optional[int] = 100000
+    modeled_bandwidth_mbps: Optional[float] = 10.0
+    modeled_throughput_images_per_hour: Optional[float] = 45.0
+    modeled_review_capacity_per_day: Optional[int] = 250
+    bottleneck_identified: Optional[str] = None
+    recommendations: Optional[dict[str, Any]] = None
+    active_phc_nodes: Optional[int] = 50
+    compression_ratio: Optional[str] = "8.4:1"
+    bandwidth_saved_tb: Optional[float] = 2.14
+    mean_triage_latency_sec: Optional[float] = 22.4
+    sla_24h_adherence_pct: Optional[float] = 98.4
+
+
+class CapacitySimulationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    id: UUID
+    district_id: UUID
+    simulation_date: date
+    target_annual_screenings: Optional[int] = None
+    modeled_bandwidth_mbps: Optional[float] = None
+    modeled_throughput_images_per_hour: Optional[float] = None
+    modeled_review_capacity_per_day: Optional[int] = None
+    bottleneck_identified: Optional[str] = None
+    recommendations: Optional[dict[str, Any]] = None
+    active_phc_nodes: Optional[int] = None
+    compression_ratio: Optional[str] = None
+    bandwidth_saved_tb: Optional[float] = None
+    mean_triage_latency_sec: Optional[float] = None
+    sla_24h_adherence_pct: Optional[float] = None
+    created_at: datetime
 

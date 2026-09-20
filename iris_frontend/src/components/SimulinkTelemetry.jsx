@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Cpu, 
   Radio, 
@@ -14,10 +14,56 @@ import {
   SignalHigh
 } from 'lucide-react';
 import { PHC_DISTRICT_NODES, TELEMEDICINE_STATS } from '../assets/fundus-data';
+import { getSimulinkTelemetry } from '../api/telemetry';
 
 export default function SimulinkTelemetry() {
   const [compressionEnabled, setCompressionEnabled] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
+  const [nodes, setNodes] = useState(PHC_DISTRICT_NODES);
+  const [stats, setStats] = useState(TELEMEDICINE_STATS);
+  const [loading, setLoading] = useState(false);
+  const [isLive, setIsLive] = useState(false);
+
+  const fetchTelemetry = async (compression) => {
+    try {
+      setLoading(true);
+      const res = await getSimulinkTelemetry({ compression });
+      if (res && res.phc_nodes) {
+        // Map backend snake_case to component node format
+        const mappedNodes = res.phc_nodes.map(n => ({
+          id: n.id,
+          name: n.name,
+          state: n.state,
+          status: n.status,
+          latency: n.latency,
+          edgeDevice: n.edge_device,
+          throughput: n.throughput,
+          queue: n.queue
+        }));
+        setNodes(mappedNodes);
+        setStats({
+          totalScreened: res.aggregate_stats?.total_screened || TELEMEDICINE_STATS.totalScreened,
+          phcNodesOnline: res.aggregate_stats?.phc_nodes_online || TELEMEDICINE_STATS.phcNodesOnline,
+          averageTriageTimeSec: res.aggregate_stats?.average_triage_time_sec || TELEMEDICINE_STATS.averageTriageTimeSec,
+          specialistSlaAdherence: res.aggregate_stats?.specialist_sla_adherence || TELEMEDICINE_STATS.specialistSlaAdherence,
+        });
+        setIsLive(true);
+      }
+    } catch (err) {
+      console.warn('Simulink Telemetry Hub offline fallback active:', err);
+      setIsLive(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTelemetry(compressionEnabled);
+    const interval = setInterval(() => {
+      fetchTelemetry(compressionEnabled);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [compressionEnabled]);
 
   return (
     <section className="py-16 md:py-24 bg-slate-900 text-white relative overflow-hidden">
@@ -75,7 +121,7 @@ export default function SimulinkTelemetry() {
           <div className="p-4 rounded-2xl bg-slate-800/70 border border-slate-700/80 text-left">
             <div className="text-xs text-slate-400 font-medium">Total Rural Screenings</div>
             <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono mt-1">
-              {TELEMEDICINE_STATS.totalScreened.toLocaleString('en-IN')}+
+              {(stats.totalScreened || 0).toLocaleString('en-IN')}+
             </div>
             <div className="text-[11px] text-emerald-400 flex items-center gap-1 mt-1 font-mono">
               <span>+1,420 today</span>
@@ -85,7 +131,7 @@ export default function SimulinkTelemetry() {
           <div className="p-4 rounded-2xl bg-slate-800/70 border border-slate-700/80 text-left">
             <div className="text-xs text-slate-400 font-medium">Active PHC Tele-Nodes</div>
             <div className="text-2xl sm:text-3xl font-extrabold text-blue-400 font-mono mt-1">
-              {TELEMEDICINE_STATS.phcNodesOnline} / 50 Online
+              {stats.phcNodesOnline || nodes.length} / 50 Online
             </div>
             <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-1 font-mono">
               <span>100% Uptime (24h)</span>
@@ -95,7 +141,7 @@ export default function SimulinkTelemetry() {
           <div className="p-4 rounded-2xl bg-slate-800/70 border border-slate-700/80 text-left">
             <div className="text-xs text-slate-400 font-medium">Avg Triage Latency</div>
             <div className="text-2xl sm:text-3xl font-extrabold text-amber-400 font-mono mt-1">
-              {TELEMEDICINE_STATS.averageTriageTimeSec}s
+              {stats.averageTriageTimeSec}s
             </div>
             <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-1 font-mono">
               <span>Doctor Review Turnaround</span>
@@ -105,7 +151,7 @@ export default function SimulinkTelemetry() {
           <div className="p-4 rounded-2xl bg-slate-800/70 border border-slate-700/80 text-left">
             <div className="text-xs text-slate-400 font-medium">SLA Compliance</div>
             <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono mt-1">
-              {TELEMEDICINE_STATS.specialistSlaAdherence}%
+              {stats.specialistSlaAdherence}%
             </div>
             <div className="text-[11px] text-emerald-400 flex items-center gap-1 mt-1 font-mono">
               <span>&lt;24 Hour Specialist Sign-off</span>
@@ -122,9 +168,21 @@ export default function SimulinkTelemetry() {
                 Live District Primary Health Center (PHC) Node Matrix
               </h3>
             </div>
-            <span className="text-xs font-mono text-slate-400">
-              Auto-polled every 5s
-            </span>
+            <div className="flex items-center gap-2">
+              {isLive ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Backend Sync
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-slate-400">
+                  Edge Local Cache
+                </span>
+              )}
+              <span className="text-xs font-mono text-slate-400">
+                Auto-polled 10s
+              </span>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -141,7 +199,7 @@ export default function SimulinkTelemetry() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/60">
-                {PHC_DISTRICT_NODES.map((node) => (
+                {nodes.map((node) => (
                   <tr key={node.id} className="hover:bg-slate-700/40 transition-colors">
                     <td className="py-3.5 px-4 font-bold text-blue-300">{node.id}</td>
                     <td className="py-3.5 px-4 text-slate-200 font-sans font-semibold">{node.name}</td>
