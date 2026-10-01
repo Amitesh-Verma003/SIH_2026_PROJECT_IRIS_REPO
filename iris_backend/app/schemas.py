@@ -302,6 +302,8 @@ class IqaResult(BaseModel):
     fov_score: float
     overall_status: str
     feedback: str
+    gradeable_flag: Optional[bool] = None
+    enhancement_applied: Optional[str] = None
 
 
 class GradCamHotspot(BaseModel):
@@ -382,6 +384,42 @@ class NearestOphthalmologistOut(BaseModel):
     facilities: list[str] = Field(default_factory=list)
     turnaround_time: Optional[str] = None
     google_maps_url: str
+    directions_url: Optional[str] = None
+
+
+class AyushCenterOut(BaseModel):
+    name: str
+    doctor: str
+    designation: str
+    type: str
+    distance: str
+    eta: str
+    lat: float
+    lng: float
+    address: str
+    phone: str
+    emergency_phone: Optional[str] = None
+    empanelment: Optional[str] = None
+    services: list[str] = Field(default_factory=list)
+    operating_hours: Optional[str] = None
+    google_maps_url: str
+    directions_url: Optional[str] = None
+
+
+class UserLocationOut(BaseModel):
+    lat: float
+    lng: float
+    district: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    formatted_address: Optional[str] = None
+    is_live_gps: bool = False
+
+
+class NearbyHealthcareOut(BaseModel):
+    user_location: UserLocationOut
+    ophthalmologist: NearestOphthalmologistOut
+    ayush_center: AyushCenterOut
 
 
 class ReferralNotifyRequest(BaseModel):
@@ -401,4 +439,5 @@ class ReferralNotifyResponse(BaseModel):
     message: str
     dispatched_at: datetime
     google_maps_url: str
+
 

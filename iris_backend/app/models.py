@@ -20,7 +20,7 @@ from app.database import Base
 
 
 def uuid_pk():
-    return Column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
+    return Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
 
 # ------------------------------------------------------------

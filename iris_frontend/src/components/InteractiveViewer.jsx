@@ -36,7 +36,7 @@ import confetti from 'canvas-confetti';
 import FundusCanvas from './FundusCanvas';
 import NearestOphthalmologistMap from './NearestOphthalmologistMap';
 import { FUNDUS_PRESETS } from '../assets/fundus-data';
-import { getNearestHealthcareCenters } from '../assets/referralData';
+import { getNearestHealthcareCenters, fetchLiveNearbyHealthcare } from '../assets/referralData';
 import { checkIsRetinalImage } from '../utils/retinaValidator';
 import { createScreeningSession, addFundusImage } from '../api/screenings';
 import { createGrading, predictDrGrading, getModelInfo } from '../api/gradings';
@@ -87,10 +87,47 @@ export default function InteractiveViewer({
     isLiveModelInference: Boolean(liveInferenceResult),
   };
 
-  // Localized Referral Centers Resolution based on District & State
-  const userDistrict = currentUser?.district || (activeData.phcLocation?.includes('Varanasi') ? 'Varanasi' : 'Ghaziabad');
-  const userState = currentUser?.state || 'Uttar Pradesh';
-  const nearestCenters = getNearestHealthcareCenters(userDistrict, userState);
+  // Localized Referral Centers Resolution based on Live District, State & GPS
+  const initialDistrict = currentUser?.district || (activeData.phcLocation?.includes('Varanasi') ? 'Varanasi' : 'Ghaziabad');
+  const initialState = currentUser?.state || 'Uttar Pradesh';
+
+  const [userLocation, setUserLocation] = useState({
+    district: initialDistrict,
+    state: initialState,
+    lat: initialDistrict === 'Varanasi' ? 25.3176 : 28.6692,
+    lng: initialDistrict === 'Varanasi' ? 82.9739 : 77.4538,
+    isLiveGps: false,
+    formattedAddress: `${initialDistrict}, ${initialState}`
+  });
+
+  const [nearestCenters, setNearestCenters] = useState(() =>
+    getNearestHealthcareCenters(initialDistrict, initialState, userLocation.lat, userLocation.lng)
+  );
+
+  // Sync nearest healthcare centers in real-time when user location / GPS coordinates change
+  useEffect(() => {
+    let isCancelled = false;
+    fetchLiveNearbyHealthcare({
+      lat: userLocation.lat,
+      lng: userLocation.lng,
+      district: userLocation.district,
+      state: userLocation.state
+    }).then((res) => {
+      if (!isCancelled && res) {
+        setNearestCenters(res);
+      }
+    });
+    return () => {
+      isCancelled = true;
+    };
+  }, [userLocation.lat, userLocation.lng, userLocation.district, userLocation.state]);
+
+  const handleLocationUpdate = (newLoc) => {
+    setUserLocation((prev) => ({ ...prev, ...newLoc }));
+  };
+
+  const userDistrict = userLocation.district || initialDistrict;
+  const userState = userLocation.state || initialState;
 
   // Fetch trained model metadata on component mount
   useEffect(() => {
@@ -217,29 +254,15 @@ export default function InteractiveViewer({
         onSelectPreset(diagnosedPreset);
       }
     } catch (err) {
-      console.warn('[IRIS AI] Live inference fallback to calibrated edge model:', err.message);
+      console.error('[IRIS AI] Live inference failed:', err.message);
       const detailMsg = (err.detail || err.message || '').toLowerCase();
       if (detailMsg.includes('not the image of retina') || detailMsg.includes('not a retinal')) {
         setInferenceError('not the image of retina');
         setLiveInferenceResult(null);
       } else {
-        // Seamless Edge AI Fallback: Diagnose scan with calibrated edge inference
-        setInferenceError(null);
-        const edgeDiagnosed = {
-          ...rawPreset,
-          id: customImage ? 'uploaded-scan' : rawPreset.id,
-          title: customImage ? `Analyzed Scan: ${label || 'Custom Fundus'}` : rawPreset.title,
-          patientName: currentUser?.patientName || rawPreset.patientName,
-          patientId: currentUser?.patientId || rawPreset.patientId,
-          modelName: 'EfficientNet-B0',
-          modelArchitecture: 'EfficientNet-B0 (Edge Neural Triage)',
-          isLiveModelInference: true,
-        };
-        setLiveInferenceResult(edgeDiagnosed);
-        setInferenceSource(label);
-        if (onSelectPreset) {
-          onSelectPreset(edgeDiagnosed);
-        }
+        // Show the actual error so the user knows inference failed
+        setInferenceError(`Model inference failed: ${err.detail || err.message || 'Backend unavailable'}. Showing preset data.`);
+        setLiveInferenceResult(null);
       }
     } finally {
       setIsInferencing(false);
@@ -667,9 +690,12 @@ export default function InteractiveViewer({
 
             </div>
 
-            {/* 2. NEAREST OPHTHALMOLOGIST & HOSPITAL MAP INTEGRATION */}
+            {/* 2. LIVE NEAREST GOVT EYE HOSPITAL & AYUSH HEALTH CENTRE MAP */}
             <NearestOphthalmologistMap
               ophthalmologist={nearestCenters.ophthalmologist}
+              ayushCenter={nearestCenters.ayushCenter}
+              userLocation={userLocation}
+              onLocationChange={handleLocationUpdate}
               patientName={activeData.patientName}
               patientId={activeData.patientId}
               icdrGrade={activeData.gradeName}
@@ -678,113 +704,9 @@ export default function InteractiveViewer({
                 const token = `#REF-${userDistrict.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
                 setReferralToken(token);
               }}
+              ayushAssigned={ayushAssigned}
+              onToggleAyush={() => setAyushAssigned(!ayushAssigned)}
             />
-
-            {/* 3. COMPLEMENTARY AYUSH HEALTH & WELLNESS CENTRE (Integrative Post-Triage Support) */}
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3 text-left animate-in fade-in duration-300">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-xl bg-emerald-50 text-emerald-700">
-                    <HeartPulse className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
-                      Nearest AYUSH Health &amp; Wellness Centre (AHWC)
-                    </h4>
-                    <p className="text-[10px] text-slate-500 font-medium">
-                      Ayushman Arogya Mandir • Holistic Microvascular Support &amp; Glycemic Rehabilitation
-                    </p>
-                  </div>
-                </div>
-
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
-                  <BadgeCheck className="w-3 h-3 text-emerald-600" />
-                  <span>National AYUSH Mission</span>
-                </span>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/70 via-teal-50/30 to-slate-50 border border-emerald-200/90 shadow-xs flex flex-col justify-between space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono uppercase tracking-wider text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
-                      <HeartPulse className="w-3 h-3 text-emerald-700" />
-                      <span>{nearestCenters.ayushCenter.type}</span>
-                    </span>
-                    <span className="text-[11px] font-mono font-bold text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-200 shadow-2xs">
-                      {nearestCenters.ayushCenter.distance} • {nearestCenters.ayushCenter.eta}
-                    </span>
-                  </div>
-
-                  <div>
-                    <h5 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
-                      {nearestCenters.ayushCenter.name}
-                    </h5>
-                    <p className="text-[11px] text-slate-600 font-semibold mt-0.5">
-                      {nearestCenters.ayushCenter.doctor}
-                    </p>
-                    <p className="text-[10px] text-slate-500">{nearestCenters.ayushCenter.designation}</p>
-                  </div>
-
-                  <div className="text-[11px] text-slate-600 flex items-start gap-1.5 pt-1">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                    <span className="leading-tight">{nearestCenters.ayushCenter.address}</span>
-                  </div>
-
-                  {nearestCenters.ayushCenter.services && (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {nearestCenters.ayushCenter.services.slice(0, 3).map((s, i) => (
-                        <span key={i} className="text-[9px] font-mono bg-white/90 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-2 border-t border-emerald-100/80 flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-emerald-600" />
-                    <span>OPD: 08:00 AM - 04:00 PM</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={nearestCenters.ayushCenter.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nearestCenters.ayushCenter.name)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="py-1.5 px-2.5 rounded-xl text-[11px] font-bold bg-white text-emerald-700 border border-emerald-200 shadow-2xs hover:bg-emerald-50 flex items-center gap-1 transition-all"
-                    >
-                      <Navigation className="w-3 h-3 text-emerald-600" />
-                      <span>Maps</span>
-                      <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
-                    </a>
-
-                    <button
-                      type="button"
-                      onClick={() => setAyushAssigned(!ayushAssigned)}
-                      className={`py-1.5 px-3 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs ${
-                        ayushAssigned
-                          ? 'bg-teal-700 text-white shadow-teal-700/20'
-                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-                      }`}
-                    >
-                      {ayushAssigned ? (
-                        <>
-                          <Check className="w-3 h-3" />
-                          <span>Assigned to AYUSH</span>
-                        </>
-                      ) : (
-                        <>
-                          <HeartPulse className="w-3 h-3" />
-                          <span>Assign Integrative Care</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
           </div>
 
           {/* Right Action & Diagnostic Panel (5 Cols) */}
